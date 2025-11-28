@@ -1,45 +1,137 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import Home from './pages/Home';
-import Vibrations from './pages/Vibrations';
-import Notifications from './pages/Notifications';
-import FAQs from './pages/FAQs';
-import About from './pages/About';
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useState, useEffect } from "react";
+
+import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
+
+import Home from "./pages/Home";
+import Vibrations from "./pages/Vibrations";
+import Notifications from "./pages/Notifications";
+import FAQs from "./pages/FAQs";
+import About from "./pages/About";
+
+import Login from "./pages/Login.jsx";
+import Signup from "./pages/SignUp.jsx";
+
+import Profile from "./pages/Profile.jsx";
+import Settings from "./pages/Setting.jsx";
+import ContactsPage from "./pages/Contacts.jsx";
+
+import ProtectedRoute from "./components/ProtectedRoute";
+import { useAuth } from "./hooks/useAuth.jsx";
 
 function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const { user } = useAuth();
+
+  // Dark mode listener
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
   return (
     <Router>
-      <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`}>
+      <div className="min-h-screen transition-colors duration-300">
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          <Navbar
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-            setSidebarOpen={setSidebarOpen}
-          />
-          <Sidebar
-            isOpen={sidebarOpen}
-            setIsOpen={setSidebarOpen}
-            darkMode={darkMode}
-          />
+
+          {/* Navbar only when logged in */}
+          {user && (
+            <Navbar
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
+              setSidebarOpen={setSidebarOpen}
+            />
+          )}
+
+          {/* Sidebar only when logged in */}
+          {user && (
+            <Sidebar
+              isOpen={sidebarOpen}
+              setIsOpen={setSidebarOpen}
+              darkMode={darkMode}
+            />
+          )}
+
           <Routes>
-            <Route path="/" element={<Home darkMode={darkMode} />} />
-            <Route path="/vibrations" element={<Vibrations darkMode={darkMode} />} />
-            <Route path="/notifications" element={<Notifications darkMode={darkMode} />} />
-            <Route path="/faqs" element={<FAQs darkMode={darkMode} />} />
-            <Route path="/about" element={<About darkMode={darkMode} />} />
+            {/* -------- PUBLIC ROUTES -------- */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+
+            {/* -------- PROTECTED ROUTES -------- */}
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Home darkMode={darkMode} />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/vibrations"
+              element={
+                <ProtectedRoute>
+                  <Vibrations darkMode={darkMode} />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <Notifications darkMode={darkMode} />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/faqs"
+              element={
+                <ProtectedRoute>
+                  <FAQs darkMode={darkMode} />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/about"
+              element={
+                <ProtectedRoute>
+                  <About darkMode={darkMode} />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* New Sidebar-linked Pages */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings/>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/contacts"
+              element={
+                <ProtectedRoute>
+                  <ContactsPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </div>
       </div>

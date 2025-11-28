@@ -1,68 +1,90 @@
-import { X, User, Settings, LogOut, Power } from 'lucide-react';
+import { X, User, Settings, Phone, LogOut } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { logoutUser } from "../utils/authActions";
 
-function Sidebar({ isOpen, setIsOpen, darkMode }) {
+function Sidebar({ isOpen, setIsOpen }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
   const menuItems = [
-    { icon: User, label: 'Profile', action: () => alert('Profile clicked') },
-    { icon: Settings, label: 'Settings', action: () => alert('Settings clicked') },
-    { icon: LogOut, label: 'Logout', action: () => alert('Logout clicked') },
-    { icon: Power, label: 'Sign Out', action: () => alert('Sign Out clicked') },
+    { label: "Profile", icon: User, route: "/profile" },
+    { label: "Settings", icon: Settings, route: "/settings" },
+    { label: "Contacts", icon: Phone, route: "/contacts" },
   ];
 
   return (
     <>
-      <div
-        className={`fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setIsOpen(false)}
-      />
+      {/* Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
 
+      {/* SIDEBAR */}
       <div
-        className={`fixed top-0 left-0 h-full w-80 bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform duration-300 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed top-0 left-0 w-72 h-full bg-white dark:bg-gray-900 p-6 z-50 shadow-xl transition-transform duration-300 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Menu</h2>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <X className="w-6 h-6 text-gray-700 dark:text-gray-300" />
-            </button>
-          </div>
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold dark:text-white">Menu</h2>
 
-          <div className="space-y-2">
-            {menuItems.map((item, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  item.action();
-                  setIsOpen(false);
-                }}
-                className="w-full flex items-center space-x-4 px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all group"
-              >
-                <item.icon className="w-6 h-6 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
-                <span className="text-gray-700 dark:text-gray-300 font-medium group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  {item.label}
-                </span>
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700"
+          >
+            <X className="w-6 dark:text-gray-300" />
+          </button>
+        </div>
 
-          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-                <span className="text-white font-bold text-lg">U</span>
-              </div>
-              <div>
-                <p className="text-gray-800 dark:text-white font-semibold">User Name</p>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">user@example.com</p>
-              </div>
+        {/* User Info */}
+        {user && (
+          <div className="flex items-center gap-4 mb-8">
+            <img
+              src={user.photoURL || "/placeholder.jpg"}
+              alt="user"
+              className="w-12 h-12 rounded-full border border-blue-500"
+            />
+            <div>
+              <p className="text-gray-900 dark:text-white font-semibold">
+                {user.displayName || "User"}
+              </p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm">{user.email}</p>
             </div>
           </div>
+        )}
+
+        {/* Menu List */}
+        <div className="space-y-2">
+          {menuItems.map((item, idx) => (
+            <button
+              key={idx}
+              onClick={() => {
+                navigate(item.route);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center gap-4 p-3 rounded-lg text-left 
+                hover:bg-gray-100 dark:hover:bg-gray-800 transition-all group"
+            >
+              <item.icon className="w-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-500" />
+              <span className="text-gray-700 dark:text-gray-300 group-hover:text-blue-500 font-medium">
+                {item.label}
+              </span>
+            </button>
+          ))}
         </div>
+
+        {/* Logout */}
+        <button
+          onClick={() => logoutUser(navigate)}
+          className="mt-10 flex items-center gap-3 justify-center w-full bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg"
+        >
+          <LogOut /> Logout
+        </button>
       </div>
     </>
   );
