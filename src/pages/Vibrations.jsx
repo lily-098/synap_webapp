@@ -1,122 +1,267 @@
 import { useState, useEffect, useRef } from "react";
 import { Line } from "react-chartjs-2";
-import { Chart as ChartJS, LineElement, CategoryScale, LinearScale, PointElement, BarController, BarElement } from "chart.js";
-import { Activity, Calendar } from "lucide-react";
+import {
+  Chart as ChartJS,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from "chart.js";
+import {
+  Activity,
+  PlugZap,
+  Play,
+  Cpu,
+  Database,
+  BrainCircuit,
+} from "lucide-react";
 
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, BarController, BarElement);
+ChartJS.register(
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  Tooltip,
+  Legend,
+  Filler
+);
 
-function Vibrations({ darkMode }) {
-  const [selectedDate, setSelectedDate] = useState("live");
+function Vibrations() {
+  const [personName, setPersonName] = useState("");
   const [liveData, setLiveData] = useState([]);
-  const websocketRef = useRef(null);
+  const [recordBuffer, setRecordBuffer] = useState([]);
+  const [status, setStatus] = useState("Idle...");
+  const [prediction, setPrediction] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
 
-  const FFT_LENGTH = 30;
-  const [fftData, setFftData] = useState(Array(FFT_LENGTH).fill({ frequency: 0, magnitude: 0 }));
+  const portRef = useRef(null);
+  const readerRef = useRef(null);
+  const stopRef = useRef(false);
+  const alarmRef = useRef(null);
 
-  // --- WebSocket Setup (LIVE DATA FROM ESP32/WIFI) ---
+  // ------------------------ SERIAL SUPPORT CHECK ------------------------
   useEffect(() => {
-    websocketRef.current = new WebSocket("ws://192.168.4.1:81/"); // CHANGE TO YOUR ESP WS PORT
-
-    websocketRef.current.onmessage = (message) => {
-      try {
-        let parsed = JSON.parse(message.data);
-
-        // Store waveform values
-        setLiveData(prev => [...prev.slice(-200), parsed]);
-
-        // Update FFT based on incoming magnitude
-        setFftData(prev =>
-          [...prev.slice(1), { frequency: parsed.frequency ?? prev.length, magnitude: parsed.fft ?? 0 }]
-        );
-      } catch {
-        console.warn("Invalid data format:", message.data);
-      }
-    };
-
-    websocketRef.current.onerror = () => console.error("WebSocket error");
-    websocketRef.current.onclose = () => console.warn("WebSocket disconnected");
-
-    return () => websocketRef.current?.close();
+    if (!("serial" in navigator)) {
+      alert("⚠ Web Serial API NOT supported. Use Chrome/Edge desktop.");
+    }
   }, []);
 
-  // --- Chart Config for Live Signal ---
-  const lineChartData = {
-    labels: liveData.map((d) => d.time.toFixed(2)),
-    datasets: [
-      {
-        label: "Vibration Amplitude",
-        data: liveData.map((d) => d.amplitude),
-        borderColor: "#06b6d4",
-        borderWidth: 2,
-        tension: 0.3,
-        pointRadius: 0,
-      },
-    ],
+  // ------------------------ CLEANUP ON EXIT ------------------------
+  useEffect(() => {
+    return () => {
+      stopRef.current = true;
+      readerRef.current?.cancel().catch(() => {});
+      portRef.current?.close().catch(() => {});
+    };
+  }, []);
+
+  // ------------------------ CONNECT SERIAL ------------------------
+  const connectSerial = async () => {
+    if (!personName.trim()) return setStatus("⚠ Enter name first.");
+
+    try {
+      const port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+
+      const decoder = new TextDecoderStream();
+      port.readable.pipeTo(decoder.writable);
+      const reader = decoder.readable.getReader();
+
+      portRef.current = port;
+      readerRef.current = reader;
+      stopRef.current = false;
+
+      setIsConnected(true);
+      setLiveData([]);
+      setRecordBuffer([]);
+      setStatus("🟢 Connected. Receiving live data...");
+
+      readLoop(reader);
+    } catch {
+      setStatus("❌ Failed to connect to port.");
+    }
   };
 
-  // --- FFT Chart ---
-  const fftChartData = {
-    labels: fftData.map((d) => d.frequency),
+  // ------------------------ SERIAL READ LOOP ------------------------
+  const readLoop = async (reader) => {
+    while (!stopRef.current) {
+      const { value, done } = await reader.read();
+      if (done || !value) break;
+
+      value.split("\n").forEach((line) => {
+        const amp = parseFloat(line.trim());
+        if (isNaN(amp)) return;
+
+        const t = performance.now() / 1000;
+
+        setLiveData((prev) => [...prev.slice(-300), { time: t, amplitude: amp }]);
+        setRecordBuffer((prev) => [...prev, { time: t, amplitude: amp }]);
+      });
+    }
+  };
+
+  // ------------------------ DISCONNECT SERIAL ------------------------
+  const disconnectSerial = async () => {
+    stopRef.current = true;
+    await readerRef.current?.cancel().catch(() => {});
+    await portRef.current?.close().catch(() => {});
+    setIsConnected(false);
+    setStatus("🔌 Disconnected.");
+  };
+
+  // ------------------------ FORMAT INTO 200 SAMPLE CHUNKS ------------------------
+  const prepareChunks = () => {
+    const chunkSize = 200;
+    const chunks = [];
+    for (let i = 0; i < recordBuffer.length; i += chunkSize) {
+      chunks.push(recordBuffer.slice(i, i + chunkSize).map((d) => d.amplitude));
+    }
+    return chunks;
+  };
+
+  // ------------------------ 1️⃣ SAVE TRAINING DATA ------------------------
+  const handleSaveTrainData = async () => {
+    if (!personName.trim()) return setStatus("⚠ Enter name first.");
+    if (recordBuffer.length < 200)
+      return setStatus("⚠ Need at least 200 samples before saving.");
+
+    const chunks = prepareChunks();
+
+    setStatus("⬆ Uploading training data...");
+
+    const res = await fetch("/train_data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: chunks,
+        label: personName.trim(),
+      }),
+    });
+
+    const result = await res.json();
+    setStatus(`📁 Training saved (${result.count || chunks.length} chunks stored).`);
+  };
+
+  // ------------------------ 2️⃣ TRAIN MODEL ------------------------
+  const handleTrainModel = async () => {
+    setStatus("🤖 Training model...");
+
+    const res = await fetch("/train_data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: [],
+        label: personName.trim(),
+        train_model: true,
+      }),
+    });
+
+    const result = await res.json();
+    setStatus(`🎯 Model trained successfully: ${result.message || "OK"}`);
+  };
+
+  // ------------------------ 3️⃣ PREDICT ------------------------
+  const handlePredict = async () => {
+    if (recordBuffer.length < 200)
+      return setStatus("⚠ Need at least 200 samples to predict.");
+
+    const lastChunk = recordBuffer.slice(-200).map((d) => d.amplitude);
+
+    setStatus("🔍 Predicting identity...");
+
+    const res = await fetch("/predictfootsteps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: lastChunk }),
+    });
+
+    const result = await res.json();
+    setPrediction(result);
+
+    if (!result.match) {
+      alarmRef.current.currentTime = 0;
+      alarmRef.current.play();
+    }
+
+    setStatus(result.match ? `✔ MATCHED: ${result.label}` : "🚨 INTRUDER DETECTED!");
+  };
+
+  // ------------------------ GRAPH SETUP ------------------------
+  const liveChartData = {
+    labels: liveData.map((d) => d.time.toFixed(1)),
     datasets: [
       {
-        label: "Magnitude",
-        data: fftData.map((d) => d.magnitude),
-        backgroundColor: "#3b82f6",
+        label: "Vibration Waveform",
+        data: liveData.map((d) => d.amplitude),
+        borderColor: "#00eaff",
+        backgroundColor: "rgba(0,234,255,0.2)",
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
       },
     ],
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
-      <div className="max-w-6xl mx-auto px-6 py-12">
-        {/* HEADER */}
-        <div className="bg-gradient-to-r from-cyan-600 to-blue-600 rounded-2xl shadow-xl p-8 mb-12">
-          <div className="flex items-center gap-4 mb-3">
-            <Activity className="w-12 h-12 text-white" />
-            <h1 className="text-4xl font-bold text-white">
-              Real-Time Vibration Monitoring
-            </h1>
-          </div>
-          <p className="text-white opacity-80">
-            Live sensor data streamed from ESP32 over Wi-Fi and visualized using FFT
-            and waveform analysis.
-          </p>
-        </div>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-3xl font-bold flex gap-2 items-center mb-6">
+        <Activity /> Vibration Identity Recognition System
+      </h1>
 
-        {/* LIVE WAVEFORM */}
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg mb-12">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">Live Signal Waveform</h2>
-          <Line data={lineChartData} height={100} />
-        </div>
+      {/* NAME INPUT */}
+      <input
+        value={personName}
+        onChange={(e) => setPersonName(e.target.value)}
+        placeholder="Enter Person Name"
+        className="text-black p-3 rounded-lg mb-4 w-64"
+      />
 
-        {/* FFT */}
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg mb-12">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">FFT Frequency Analysis</h2>
-          <Line data={fftChartData} height={100} />
-        </div>
+      {/* BUTTONS */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        <button
+          onClick={isConnected ? disconnectSerial : connectSerial}
+          className="bg-blue-600 text-white px-5 py-3 rounded-xl flex gap-2 items-center"
+        >
+          <PlugZap />
+          {isConnected ? "Disconnect" : "Connect"}
+        </button>
 
-        {/* FUTURE: HISTORICAL DATA UI (not yet connected until DB exists) */}
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-white">History</h2>
-            <div className="flex gap-2 items-center">
-              <Calendar className="w-5 text-gray-500" />
-              <select
-                className="border px-3 py-2 rounded-lg"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-              >
-                <option value="live">Live</option>
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-              </select>
-            </div>
-          </div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Historical storage will activate once database is connected.
-          </p>
-        </div>
+        <button
+          onClick={handleSaveTrainData}
+          className="bg-green-600 text-white px-5 py-3 rounded-xl flex gap-2 items-center"
+        >
+          <Database /> Save Train Data
+        </button>
+
+        <button
+          onClick={handleTrainModel}
+          className="bg-yellow-600 text-white px-5 py-3 rounded-xl flex gap-2 items-center"
+        >
+          <BrainCircuit /> Train Model
+        </button>
+
+        <button
+          onClick={handlePredict}
+          className="bg-purple-600 text-white px-5 py-3 rounded-xl flex gap-2 items-center"
+        >
+          <Play /> Predict
+        </button>
       </div>
+
+      {/* STATUS */}
+      <p className="text-lg flex gap-2 items-center mb-4">
+        <Cpu className="w-5" /> {status}
+      </p>
+
+      {/* LIVE GRAPH */}
+      <div className="bg-gray-800 p-6 rounded-xl shadow-lg">
+        <Line data={liveChartData} height={120} />
+      </div>
+
+      <audio ref={alarmRef} src="/alarm.mp3" preload="auto" />
     </div>
   );
 }

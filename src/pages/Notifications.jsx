@@ -1,118 +1,120 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { AlertTriangle, Info, CheckCircle, Clock } from "lucide-react";
+import { AlertTriangle, Info, CheckCircle, Clock, Volume2, VolumeX } from "lucide-react";
 
 function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [alarmActive, setAlarmActive] = useState(false);
+  const [alarmMuted, setAlarmMuted] = useState(false);
 
   const alarmSoundRef = useRef(null);
 
-  // ------------------------------------------------------
-  // 🔊 Load alarm sound
-  // ------------------------------------------------------
+  // Load alarm sound
   useEffect(() => {
-    alarmSoundRef.current = new Audio("/alarm.mp3");
+    alarmSoundRef.current = new Audio("/race-starts-beeps-125125.mp3");
     alarmSoundRef.current.volume = 1.0;
+    alarmSoundRef.current.loop = true;
   }, []);
 
-  // ------------------------------------------------------
-  // 🔔 Request push notification permission
-  // ------------------------------------------------------
+  // Unlock audio on first click
+  useEffect(() => {
+    const unlock = () => {
+      alarmSoundRef.current.play().catch(() => {});
+      alarmSoundRef.current.pause();
+      alarmSoundRef.current.currentTime = 0;
+      window.removeEventListener("pointerdown", unlock);
+    };
+
+    window.addEventListener("pointerdown", unlock);
+    return () => window.removeEventListener("pointerdown", unlock);
+  }, []);
+
+  // Ask notification permission
   useEffect(() => {
     if ("Notification" in window) {
       Notification.requestPermission();
     }
   }, []);
 
-  // ------------------------------------------------------
-  // 🚨 Handle incoming notifications
-  // ------------------------------------------------------
-  const handleReceiveNotification = useCallback((payload) => {
-    const item = {
-      id: Date.now(),
-      type: payload.type ?? "info",
-      title: payload.title ?? "Notification",
-      message: payload.message ?? "Event occurred.",
-      timestamp: payload.timestamp ?? "Just now",
-      read: false,
-    };
+  // Handle incoming notification
+  const handleReceiveNotification = useCallback(
+    (payload) => {
+      const item = {
+        id: Date.now(),
+        type: payload.type ?? "info",
+        title: payload.title ?? "Notification",
+        message: payload.message ?? "Event occurred.",
+        timestamp: payload.timestamp ?? "Just now",
+        read: false,
+      };
 
-    setNotifications((prev) => [item, ...prev]);
+      setNotifications((prev) => [item, ...prev]);
 
-    // If WARNING → activate alarm + sound
-    if (item.type === "warning") {
-      setAlarmActive(true);
-      try {
-        alarmSoundRef.current.currentTime = 0;
-        alarmSoundRef.current.play();
-      } catch (err) {
-        console.log("User interaction needed before sound can play.");
+      if (item.type === "warning") {
+        setAlarmActive(true);
+
+        if (!alarmMuted) {
+          alarmSoundRef.current.currentTime = 0;
+          alarmSoundRef.current.play().catch(() => {});
+        }
       }
-    }
 
-    // System/browser notification
-    if ("Notification" in window && Notification.permission === "granted") {
-      new Notification(item.title, { body: item.message });
-    }
-  }, []);
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(item.title, { body: item.message });
+      }
+    },
+    [alarmMuted]
+  );
 
-  // ------------------------------------------------------
-  // 🧪 10-second test warning (remove if not needed)
-  // ------------------------------------------------------
-  useEffect(() => {
-    const t = setTimeout(() => {
-      handleReceiveNotification({
-        type: "warning",
-        title: "Test Alarm Trigger",
-        message: "This is a demo warning triggered after 10 seconds.",
-        timestamp: "Just now",
-      });
-    }, 10000);
-
-    return () => clearTimeout(t);
-  }, [handleReceiveNotification]);
-
-  // ------------------------------------------------------
-  // 🚫 Stop Alarm
-  // ------------------------------------------------------
+  // Stop alarm
   const stopAlarm = () => {
     setAlarmActive(false);
     alarmSoundRef.current.pause();
     alarmSoundRef.current.currentTime = 0;
   };
 
-  // ------------------------------------------------------
-  // 🔵 NORMAL HEADER
-  // ------------------------------------------------------
   const NormalHeader = () => (
-    <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl shadow-xl p-10 mb-12">
+    <div className="bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl shadow-xl p-10 mb-6 relative">
       <h1 className="text-white text-5xl font-extrabold">Notifications</h1>
       <p className="text-white text-lg mt-2">Real-time alerts will appear below.</p>
+
+      <button
+        onClick={() => {
+          setAlarmMuted(!alarmMuted);
+          alarmSoundRef.current.pause();
+        }}
+        className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/30 rounded-xl text-white"
+      >
+        {alarmMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+      </button>
     </div>
   );
 
-  // ------------------------------------------------------
-  // 🔴 WARNING HEADER (SIREN MODE)
-  // ------------------------------------------------------
   const WarningHeader = () => (
     <div
       onClick={stopAlarm}
-      className="cursor-pointer bg-gradient-to-r from-red-600 to-orange-500 rounded-2xl shadow-2xl p-10 mb-12 flex items-center justify-between animate-pulse"
+      className="cursor-pointer bg-gradient-to-r from-red-600 to-orange-500
+      rounded-2xl shadow-2xl p-10 mb-6 flex items-center justify-between animate-pulse relative"
     >
       <div>
-        <h1 className="text-white text-5xl font-extrabold drop-shadow-lg">
-          ⚠ Warning Active!
-        </h1>
+        <h1 className="text-white text-5xl font-extrabold drop-shadow-lg">⚠ Warning Active!</h1>
         <p className="text-white text-lg opacity-90 mt-2">
           A critical alert has been detected by the system.
         </p>
       </div>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setAlarmMuted(!alarmMuted);
+          alarmSoundRef.current.pause();
+        }}
+        className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/30 rounded-xl text-white"
+      >
+        {alarmMuted ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+      </button>
     </div>
   );
 
-  // ------------------------------------------------------
-  // 🎨 Icon + color helpers
-  // ------------------------------------------------------
   const getIcon = (type) => {
     switch (type) {
       case "warning":
@@ -155,15 +157,27 @@ function Notifications() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-
       <div className="max-w-4xl mx-auto px-6 py-12">
-
-        {/* 🔄 Use header based on alarmActive */}
         {alarmActive ? <WarningHeader /> : <NormalHeader />}
 
-        {/* ----------------------
-            Notification List
-        ----------------------- */}
+        {/* Manual Test */}
+        <div className="flex justify-center mb-10">
+          <button
+            onClick={() =>
+              handleReceiveNotification({
+                type: "warning",
+                title: "Manual Test Alert",
+                message: "This is a manually triggered warning alert.",
+                timestamp: "Just now",
+              })
+            }
+            className="px-8 py-3 bg-red-600 text-white rounded-xl shadow hover:bg-red-700 transition text-lg"
+          >
+            Trigger Test Alert
+          </button>
+        </div>
+
+        {/* Notification List */}
         <div className="space-y-4">
           {notifications.length === 0 && (
             <p className="text-center text-gray-600 dark:text-gray-300">
@@ -185,12 +199,9 @@ function Notifications() {
 
                   <div className="flex-1">
                     <div className="flex justify-between">
-                      <h3 className={`text-lg font-bold ${colors.title}`}>
-                        {n.title}
-                      </h3>
+                      <h3 className={`text-lg font-bold ${colors.title}`}>{n.title}</h3>
                       <span className="text-gray-500 text-sm flex items-center">
-                        <Clock className="w-4 h-4 mr-1" />
-                        {n.timestamp}
+                        <Clock className="w-4 h-4 mr-1" /> {n.timestamp}
                       </span>
                     </div>
 
@@ -202,56 +213,45 @@ function Notifications() {
           })}
         </div>
 
-        {/* ----------------------
-            LEGEND
-        ----------------------- */}
-        <div className="mt-12 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md">
-          <h3 className="text-lg font-bold mb-4 dark:text-white">Notification Legend</h3>
+        <NotificationLegend />
+      </div>
+    </div>
+  );
+}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+function NotificationLegend() {
+  return (
+    <div className="mt-12 p-6 bg-white dark:bg-gray-800 rounded-xl shadow-md">
+      <h3 className="text-lg font-bold mb-4 dark:text-white">Notification Legend</h3>
 
-            {/* Warning */}
-            <div className="flex items-center space-x-3">
-              <div className="bg-red-100 dark:bg-red-800 p-2 rounded-lg">
-                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="font-semibold dark:text-white">Warning</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Critical alert. Needs attention.
-                </p>
-              </div>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <LegendItem
+          icon={<AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />}
+          title="Warning"
+          desc="Critical alert. Needs attention."
+        />
+        <LegendItem
+          icon={<Info className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
+          title="Information"
+          desc="General update."
+        />
+        <LegendItem
+          icon={<CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />}
+          title="Success"
+          desc="Positive event."
+        />
+      </div>
+    </div>
+  );
+}
 
-            {/* Info */}
-            <div className="flex items-center space-x-3">
-              <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-lg">
-                <Info className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="font-semibold dark:text-white">Information</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  General update.
-                </p>
-              </div>
-            </div>
-
-            {/* Success */}
-            <div className="flex items-center space-x-3">
-              <div className="bg-green-100 dark:bg-green-800 p-2 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="font-semibold dark:text-white">Success</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Positive event.
-                </p>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
+function LegendItem({ icon, title, desc }) {
+  return (
+    <div className="flex items-center space-x-3">
+      <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700">{icon}</div>
+      <div>
+        <p className="font-semibold dark:text-white">{title}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-400">{desc}</p>
       </div>
     </div>
   );
