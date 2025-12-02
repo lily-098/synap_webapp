@@ -108,9 +108,9 @@ const fftChartOptions = {
 
 function Vibrations() {
   // ============== CORE STATE ==============
-  // One-Class Anomaly Detection: Always train on HOME, detect intruders as anomalies
-  const sampleMode = "HOME"; // Fixed to HOME for one-class anomaly detection
-  const [labelName, setLabelName] = useState(""); // Custom label name for saving
+  // Anomaly Detection: Train on HOME, optionally add INTRUDER for binary fallback
+  const [saveLabel, setSaveLabel] = useState("HOME"); // HOME or INTRUDER
+  const [labelName, setLabelName] = useState(""); // Custom sub-label name
   const [status, setStatus] = useState("Idle — Connect serial to begin");
   const [prediction, setPrediction] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -145,7 +145,7 @@ function Vibrations() {
   const [detectionStats, setDetectionStats] = useState({
     totalSamples: 0,
     eventsDetected: 0,
-    eventsRejected: 0,
+    noiseRejected: 0,
     lastRejectionReason: null
   });
 
@@ -155,7 +155,12 @@ function Vibrations() {
 
   // ============== SENSITIVITY/THRESHOLD ==============
   const [sensitivity, setSensitivity] = useState('medium');
-  const [customThreshold, setCustomThreshold] = useState(0.15);
+  const [customThreshold, setCustomThreshold] = useState(3.2); // Default: adaptive threshold multiplier
+
+  // ============== ML THRESHOLD OVERRIDE ==============
+  const [mlThresholdOverride, setMlThresholdOverride] = useState(null); // null = use model default
+  const [customMlThreshold, setCustomMlThreshold] = useState(0.0);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(0.45); // Min confidence for HOME
 
   // ============== TOASTS ==============
   const [toasts, setToasts] = useState([]);
@@ -180,15 +185,15 @@ function Vibrations() {
   const handleSensitivityChange = (newSensitivity) => {
     setSensitivity(newSensitivity);
     if (newSensitivity === 'custom') {
-      // Keep custom threshold
+      // Keep custom threshold - apply to adaptive threshold multiplier
       if (detectorRef.current) {
-        detectorRef.current.updateConfig({ THRESHOLD_MULT: customThreshold });
+        detectorRef.current.updateConfig({ ADAPTIVE_THRESHOLD_MULT: customThreshold });
       }
     } else {
       const preset = SENSITIVITY_PRESETS[newSensitivity];
       if (preset && detectorRef.current) {
         detectorRef.current.updateConfig(preset);
-        setCustomThreshold(preset.THRESHOLD_MULT);
+        setCustomThreshold(preset.ADAPTIVE_THRESHOLD_MULT || 3.2);
       }
     }
     showToast(`🎚️ Sensitivity set to ${newSensitivity}`, 'success');
@@ -200,7 +205,11 @@ function Vibrations() {
       setCustomThreshold(threshold);
       setSensitivity('custom');
       if (detectorRef.current) {
-        detectorRef.current.updateConfig({ THRESHOLD_MULT: threshold });
+        // Update adaptive threshold multiplier
+        detectorRef.current.updateConfig({
+          ADAPTIVE_THRESHOLD_MULT: threshold,
+          MIN_RMS_RAW: Math.max(0.01, 0.1 / threshold)
+        });
       }
     }
   };
@@ -273,9 +282,9 @@ function Vibrations() {
       setLifData([]);
       setSpikeMarkers([]);
       setValidatedEvents([]);
-      setDetectionStats({ totalSamples: 0, eventsDetected: 0, eventsRejected: 0, lastRejectionReason: null });
+      setDetectionStats({ totalSamples: 0, eventsDetected: 0, noiseRejected: 0, lastRejectionReason: null });
 
-      const effectiveLabel = labelName.trim() || sampleMode;
+      const effectiveLabel = getEffectiveLabel();
       setStatus(`🟢 Connected — Recording as "${effectiveLabel}"...`);
 
       readLoop(reader);
@@ -322,15 +331,15 @@ function Vibrations() {
   const processSerialLine = (line) => {
     if (!line) return;
 
-    // Parse ESP32 format: "Raw:1958 Baseline:1906 Amplified:382 Peak:382"
-    // Or simple number format
+    // Parse ESP32 formats robustly: "Raw:1958", "Raw: 1958", "raw=1958", or just a number
     let rawValue;
-
-    const rawMatch = line.match(/Raw:(\d+)/);
+    const rawMatch = line.match(/Raw\s*[:=]?\s*(\d{1,4})/i);
     if (rawMatch) {
       rawValue = parseInt(rawMatch[1], 10);
     } else {
-      rawValue = parseInt(line, 10);
+      // Fallback: first integer on the line
+      const anyNum = line.match(/\b(\d{1,4})\b/);
+      rawValue = anyNum ? parseInt(anyNum[1], 10) : NaN;
     }
 
     if (isNaN(rawValue) || rawValue < 0 || rawValue > 4095) return;
@@ -350,14 +359,14 @@ function Vibrations() {
 
     // Update amplified signal graph
     setAmplifiedData(prev => {
-      const newData = [...prev, { time: timestamp, value: result.amplified }];
+      const newData = [...prev, { time: timestamp, value: result.filtered }];
       return newData.slice(-500); // Keep last 500 points
     });
 
     // Process through LIF neuron
     const lif = lifNeuronRef.current;
     if (lif && !result.isWarmup) {
-      const normalizedInput = Math.abs(result.amplified) / 500; // Normalize
+      const normalizedInput = Math.abs(result.filtered) / 500; // Normalize
       const lifResult = lif.step(normalizedInput);
 
       setLifData(prev => {
@@ -375,7 +384,8 @@ function Vibrations() {
 
     // Update status during warmup
     if (result.isWarmup) {
-      setStatus(`🔄 Warming up... (${detector.warmupCount}/${DETECTION_CONFIG.WARMUP_THRESHOLD})`);
+      const progress = result.warmupProgress ? (result.warmupProgress * 100).toFixed(0) : '...';
+      setStatus(`🔄 Warming up noise floor... ${progress}%`);
       return;
     }
 
@@ -383,25 +393,45 @@ function Vibrations() {
     if (result.eventActive) {
       setCurrentEventInfo({
         length: result.eventLength,
-        deviation: result.deviation,
-        threshold: result.threshold
+        energy: result.energy,
+        threshold: result.threshold,
+        noiseFloor: result.noiseFloor
       });
-      setStatus(`📊 Event active: ${result.eventLength} samples`);
+      setStatus(`📊 Capturing: ${result.eventLength} samples, energy=${result.energy?.toFixed(4) || '?'}`);
     } else {
       setCurrentEventInfo(null);
       if (!result.event) {
-        setStatus(`🟢 Monitoring — Threshold: ${result.threshold.toFixed(1)}`);
+        // Show energy-based status with noise floor
+        const energyRatio = result.energy / Math.max(result.threshold, 0.001);
+        setStatus(`🟢 Noise: ${result.noiseFloor?.toFixed(4) || '?'} | Thresh: ${result.threshold?.toFixed(4) || '?'} | Energy: ${result.energy?.toFixed(4) || '?'} (${(energyRatio * 100).toFixed(0)}%)`);
       }
     }
 
-    // Handle detected event
+    // Handle detected event (could be valid footstep or rejected noise)
     if (result.event) {
-      handleValidatedEvent(result.event);
+      if (result.event.isNoise || result.event.rejected) {
+        // Noise event rejected - do not save, just log
+        setDetectionStats(prev => ({
+          ...prev,
+          noiseRejected: (prev.noiseRejected || 0) + 1
+        }));
+        console.log('❌ Noise rejected:', result.event.reasons);
+        setStatus(`🔇 Noise rejected: ${result.event.reasons?.[0] || 'Invalid pattern'}`);
+      } else {
+        // Valid footstep
+        handleValidatedEvent(result.event);
+      }
     }
   };
 
   // ============== HANDLE VALIDATED EVENT ==============
   const handleValidatedEvent = async (event) => {
+    // CRITICAL: Block noise from being saved as training data
+    if (event.isNoise || event.rejected) {
+      console.log('⛔ Blocked noise event from being processed');
+      return;
+    }
+
     // Update FFT display
     setFftData({
       frequencies: event.frequencies.slice(0, 50),
@@ -417,17 +447,18 @@ function Vibrations() {
       eventsDetected: prev.eventsDetected + 1
     }));
 
-    // Show toast
+    // Show toast with footstep metrics
     const metrics = event.metrics;
     showToast(
-      `✅ Footstep detected! SNR: ${metrics.snr.toFixed(1)}, Freq: ${metrics.domFreq.toFixed(0)}Hz`,
+      `✅ Footstep! Duration: ${metrics.duration_ms?.toFixed(0) || '?'}ms, RMS: ${metrics.rms?.toFixed(3) || '?'}`,
       'success'
     );
 
-    setStatus(`✅ Event validated! Dom.Freq: ${metrics.domFreq.toFixed(1)}Hz, SNR: ${metrics.snr.toFixed(2)}`);
+    setStatus(`✅ Valid footstep! ${metrics.duration_ms?.toFixed(0)}ms, Peak: ${metrics.peakDev?.toFixed(0)}, Band: ${(metrics.bandRatio * 100)?.toFixed(0)}%`);
 
-    // Auto-save if enabled
-    if (autoSaveEnabled && personName.trim()) {
+    // Auto-save if enabled (always use current saveLabel)
+    // ONLY save verified footsteps, never noise
+    if (autoSaveEnabled && !event.isNoise && !event.rejected) {
       await saveEventToBackend(event);
     }
 
@@ -438,10 +469,23 @@ function Vibrations() {
   };
 
   // ============== SAVE EVENT TO BACKEND ==============
-  // Get the effective label (custom name or mode)
-  const getEffectiveLabel = () => labelName.trim() || sampleMode;
+  // Get the effective label: uses saveLabel (HOME/INTRUDER) with optional custom name
+  const getEffectiveLabel = () => {
+    const customName = labelName.trim();
+    if (customName) {
+      // Custom name provided - use it with the base label type
+      return `${saveLabel}_${customName}`;
+    }
+    return saveLabel; // Just HOME or INTRUDER
+  };
 
   const saveEventToBackend = async (event) => {
+    // CRITICAL: Prevent saving noise events
+    if (event.isNoise || event.rejected) {
+      console.log('⛔ Blocked noise event from being saved');
+      return;
+    }
+
     // Throttle: max 2 saves per second
     const now = Date.now();
     if (now - lastSaveTimeRef.current < 500) return;
@@ -470,14 +514,31 @@ function Vibrations() {
 
     try {
       const result = await api.predict(backendData);
-      const formatted = formatPrediction(result);
 
-      setPrediction({ ...result, formatted });
+      // Apply custom threshold overrides
+      let adjustedResult = { ...result };
 
-      if (result.is_intruder) {
+      // Override anomaly threshold if custom is set
+      if (mlThresholdOverride !== null) {
+        const adjustedIsIntruder = result.anomaly_score > mlThresholdOverride;
+        adjustedResult.is_intruder = adjustedIsIntruder;
+        adjustedResult.prediction = adjustedIsIntruder ? 'INTRUDER' : 'HOME';
+        adjustedResult.threshold = mlThresholdOverride;
+      }
+
+      // Apply confidence threshold for uncertain detection
+      if (!adjustedResult.is_intruder && adjustedResult.confidence < confidenceThreshold) {
+        adjustedResult.color_code = 'yellow';
+        adjustedResult.confidence_band = 'low';
+      }
+
+      const formatted = formatPrediction(adjustedResult);
+      setPrediction({ ...adjustedResult, formatted });
+
+      if (adjustedResult.is_intruder) {
         alarmRef.current?.play();
         showToast(`🚨 INTRUDER: ${formatted.person} (${formatted.confidenceDisplay})`, 'error');
-      } else if (result.confidence < 0.5) {
+      } else if (adjustedResult.confidence < confidenceThreshold) {
         showToast(`⚠ Low confidence: ${formatted.person} (${formatted.confidenceDisplay})`, 'warning');
       } else {
         showToast(`✅ ${formatted.person}: ${formatted.confidenceDisplay}`, 'success');
@@ -526,12 +587,13 @@ function Vibrations() {
     setStatus("🧠 Training anomaly detector on HOME patterns...");
 
     try {
-      const result = await api.trainModel(sampleMode);
+      const result = await api.trainModel(saveLabel);
       setModelTrained(true);
 
       if (result.metrics) {
         setTrainingMetrics(result.metrics);
-        const accuracy = (result.metrics.accuracy * 100).toFixed(1);
+        // Backend returns training_accuracy as a percentage (e.g., 95.5), not decimal
+        const accuracy = result.metrics.training_accuracy ?? 0;
         showToast(`🎯 Anomaly detector trained! Accuracy: ${accuracy}%`, 'success');
         setStatus(`🎯 Anomaly detector ready! Accuracy: ${accuracy}%`);
       } else {
@@ -568,15 +630,30 @@ function Vibrations() {
 
     try {
       const result = await api.predict(backendData);
-      const formatted = formatPrediction(result);
 
-      setPrediction({ ...result, formatted });
+      // Apply custom threshold overrides
+      let adjustedResult = { ...result };
 
-      if (result.is_intruder) {
+      if (mlThresholdOverride !== null) {
+        const adjustedIsIntruder = result.anomaly_score > mlThresholdOverride;
+        adjustedResult.is_intruder = adjustedIsIntruder;
+        adjustedResult.prediction = adjustedIsIntruder ? 'INTRUDER' : 'HOME';
+        adjustedResult.threshold = mlThresholdOverride;
+      }
+
+      if (!adjustedResult.is_intruder && adjustedResult.confidence < confidenceThreshold) {
+        adjustedResult.color_code = 'yellow';
+        adjustedResult.confidence_band = 'low';
+      }
+
+      const formatted = formatPrediction(adjustedResult);
+      setPrediction({ ...adjustedResult, formatted });
+
+      if (adjustedResult.is_intruder) {
         alarmRef.current?.play();
         showToast(`🚨 INTRUDER ALERT! Confidence: ${formatted.confidenceDisplay}`, 'error');
         setStatus(`🚨 INTRUDER DETECTED!`);
-      } else if (result.confidence < 0.5) {
+      } else if (adjustedResult.confidence < confidenceThreshold) {
         alarmRef.current?.play();
         showToast(`⚠ Low Confidence: ${formatted.person}`, 'warning');
         setStatus(`⚠ LOW CONFIDENCE: ${formatted.person} (${formatted.confidenceDisplay})`);
@@ -786,16 +863,35 @@ function Vibrations() {
         </div>
       </div>
 
-      {/* ONE-CLASS ANOMALY DETECTION INFO */}
+      {/* SAVE LABEL SELECTOR + SETTINGS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 p-4 rounded-xl border border-green-500/30">
-          <label className="block text-sm text-green-400 mb-2 font-semibold">🧠 One-Class Anomaly Detection</label>
-          <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="w-5 text-green-400" />
-            <span className="text-lg font-bold text-green-300">Training Mode: HOME</span>
+        {/* LABEL SELECTOR - HOME or INTRUDER */}
+        <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+          <label className="block text-sm text-gray-400 mb-2 font-semibold">💾 Save Samples As:</label>
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => setSaveLabel('HOME')}
+              className={`flex-1 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${saveLabel === 'HOME'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/30'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+            >
+              <CheckCircle className="w-5" /> HOME
+            </button>
+            <button
+              onClick={() => setSaveLabel('INTRUDER')}
+              className={`flex-1 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${saveLabel === 'INTRUDER'
+                ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/30'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+            >
+              <AlertTriangle className="w-5" /> INTRUDER
+            </button>
           </div>
-          <p className="text-xs text-gray-400">
-            Train on HOME footsteps only. Model learns "normal" patterns and automatically detects unknown intruders as anomalies.
+          <p className="text-xs text-gray-500">
+            {saveLabel === 'HOME'
+              ? '✅ Training data for HOME recognition'
+              : '⚠️ Binary fallback training (optional)'}
           </p>
         </div>
 
@@ -806,19 +902,19 @@ function Vibrations() {
               type="text"
               value={labelName}
               onChange={(e) => setLabelName(e.target.value)}
-              placeholder="e.g., Pranshul, Aditi, Samir..."
+              placeholder="e.g., Pranshul, Aditi..."
               className="flex-1 text-white bg-gray-700 p-3 rounded-lg border border-gray-600 focus:border-cyan-500 focus:outline-none"
-              onKeyPress={(e) => e.key === 'Enter' && showToast(`✅ Label set to: ${labelName || 'HOME'}`, 'success')}
+              onKeyPress={(e) => e.key === 'Enter' && showToast(`✅ Label: ${getEffectiveLabel()}`, 'success')}
             />
             <button
-              onClick={() => showToast(`✅ Label set to: ${labelName || 'HOME'}`, 'success')}
+              onClick={() => showToast(`✅ Label: ${getEffectiveLabel()}`, 'success')}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg font-bold transition-all"
             >
               Set
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Saving as: <strong className="text-cyan-400 text-base">{labelName || 'HOME'}</strong>
+            Saving as: <strong className={`text-base ${saveLabel === 'HOME' ? 'text-green-400' : 'text-red-400'}`}>{getEffectiveLabel()}</strong>
           </p>
         </div>
 
@@ -948,6 +1044,7 @@ function Vibrations() {
           <div className="flex items-center gap-4 text-sm text-gray-400">
             <span>Samples: {detectionStats.totalSamples}</span>
             <span className="text-green-400">Events: {detectionStats.eventsDetected}</span>
+            <span className="text-red-400">Noise: {detectionStats.noiseRejected}</span>
             {currentEventInfo && (
               <span className="text-yellow-400 animate-pulse">
                 Recording: {currentEventInfo.length} samples
@@ -959,9 +1056,9 @@ function Vibrations() {
 
       {/* PREDICTION RESULT */}
       {prediction && prediction.formatted && (
-        <div className={`mb-6 p-5 rounded-xl border-2 transition-all ${prediction.is_intruder
-          ? 'bg-red-900/50 border-red-500 shadow-lg shadow-red-500/20'
-          : prediction.confidence >= 0.5
+        <div className={`mb-6 p-5 rounded-xl border-2 transition-all ${prediction.color_code === 'red'
+          ? 'bg-red-900/50 border-red-500 shadow-lg shadow-red-500/30 animate-pulse'
+          : prediction.color_code === 'green'
             ? 'bg-green-900/50 border-green-500 shadow-lg shadow-green-500/20'
             : 'bg-yellow-900/50 border-yellow-500 shadow-lg shadow-yellow-500/20'
           }`}>
@@ -972,7 +1069,35 @@ function Vibrations() {
             {prediction.alert && <span className="text-sm opacity-75">{prediction.alert}</span>}
           </div>
           <div className="text-4xl font-bold mb-2">{prediction.formatted.person}</div>
-          <div className="text-xl mb-4">Confidence: {prediction.formatted.confidenceDisplay}</div>
+          <div className="text-xl mb-2">Confidence: {prediction.formatted.confidenceDisplay}</div>
+
+          {/* Enhanced Scoring Details */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm bg-gray-900/50 rounded-lg p-3">
+            <div className="text-center">
+              <div className="text-gray-400">Anomaly Score</div>
+              <div className={`font-bold ${prediction.anomaly_score > prediction.threshold ? 'text-red-400' : 'text-green-400'}`}>
+                {prediction.anomaly_score?.toFixed(3) ?? 'N/A'}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">Threshold</div>
+              <div className="font-bold text-blue-400">{prediction.threshold?.toFixed(3) ?? 'N/A'}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">Confidence Band</div>
+              <div className={`font-bold ${prediction.confidence_band === 'high' ? 'text-green-400' :
+                prediction.confidence_band === 'medium' ? 'text-yellow-400' : 'text-orange-400'
+                }`}>
+                {prediction.confidence_band?.toUpperCase() ?? 'N/A'}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-gray-400">Model Agreement</div>
+              <div className={`font-bold ${prediction.svm_agrees ? 'text-green-400' : prediction.svm_agrees === false ? 'text-yellow-400' : 'text-gray-400'}`}>
+                {prediction.svm_agrees === true ? '✓ Confirmed' : prediction.svm_agrees === false ? '⚠ Uncertain' : 'N/A'}
+              </div>
+            </div>
+          </div>
 
           {prediction.probabilities && (
             <div className="space-y-2">
@@ -983,7 +1108,9 @@ function Vibrations() {
                     <span className="w-24 text-sm">{name}</span>
                     <div className="flex-1 bg-gray-700 rounded-full h-3 overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${name === prediction.formatted.person ? 'bg-gradient-to-r from-cyan-400 to-blue-500' : 'bg-gray-500'
+                        className={`h-full rounded-full transition-all duration-500 ${name === 'INTRUDER'
+                          ? 'bg-gradient-to-r from-red-500 to-red-400'
+                          : 'bg-gradient-to-r from-green-400 to-emerald-500'
                           }`}
                         style={{ width: `${prob * 100}%` }}
                       />
@@ -1154,8 +1281,8 @@ function Vibrations() {
                   <span>🤖 Model: <strong className={datasetInfo.model_status === 'trained' ? 'text-green-400' : 'text-yellow-400'}>
                     {datasetInfo.model_status || 'not trained'}
                   </strong></span>
-                  {datasetInfo.model_accuracy && (
-                    <span>🎯 Accuracy: <strong className="text-cyan-400">{(datasetInfo.model_accuracy * 100).toFixed(1)}%</strong></span>
+                  {datasetInfo.model_accuracy != null && !isNaN(datasetInfo.model_accuracy) && (
+                    <span>🎯 Accuracy: <strong className="text-cyan-400">{datasetInfo.model_accuracy.toFixed(1)}%</strong></span>
                   )}
                 </div>
               </>
@@ -1180,6 +1307,7 @@ function Vibrations() {
                   <button
                     key={key}
                     onClick={() => handleSensitivityChange(key)}
+                    title={preset.description}
                     className={`px-4 py-2 rounded-lg font-medium transition-all ${sensitivity === key
                       ? 'bg-cyan-600 text-white shadow-lg'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -1190,6 +1318,7 @@ function Vibrations() {
                 ))}
                 <button
                   onClick={() => setSensitivity('custom')}
+                  title="Custom threshold"
                   className={`px-4 py-2 rounded-lg font-medium transition-all ${sensitivity === 'custom'
                     ? 'bg-purple-600 text-white shadow-lg'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -1198,46 +1327,76 @@ function Vibrations() {
                   🔧 Custom
                 </button>
               </div>
+              {/* Show selected preset description */}
+              {sensitivity !== 'custom' && SENSITIVITY_PRESETS[sensitivity] && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {SENSITIVITY_PRESETS[sensitivity].description}
+                </p>
+              )}
             </div>
 
-            {/* Custom Threshold Slider - Extended Range */}
+            {/* Simple Sensitivity Slider */}
             <div className="mb-4 p-3 bg-gray-800 rounded-lg">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm text-gray-400">Threshold Multiplier:</label>
-                <span className="text-cyan-400 font-bold">{customThreshold.toFixed(3)}x</span>
+                <label className="text-sm text-gray-400">🎚️ Spike Multiplier (vs recent noise):</label>
+                <span className="text-cyan-400 font-bold">{customThreshold.toFixed(1)}x</span>
               </div>
               <input
                 type="range"
-                min="0.01"
-                max="1.0"
-                step="0.01"
+                min="1.2"
+                max="6.0"
+                step="0.1"
                 value={customThreshold}
                 onChange={(e) => handleCustomThresholdChange(e.target.value)}
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>🔥 Extreme (0.01)</span>
-                <span>Normal (1.0)</span>
+                <span>🔊 Sensitive (1.2x)</span>
+                <span>🔇 Strict (6x)</span>
+              </div>
+              <p className="text-xs text-green-400 mt-2">
+                💡 Spike must be this many times larger than recent activity. Higher = rejects more noise.
+              </p>
+            </div>
+
+            {/* Simplified ML Confidence */}
+            <div className="mb-4 p-3 bg-gray-800 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm text-gray-400">🎯 Min Confidence for HOME:</label>
+                <span className="text-purple-400 font-bold">{(confidenceThreshold * 100).toFixed(0)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.3"
+                max="0.95"
+                step="0.05"
+                value={confidenceThreshold}
+                onChange={(e) => setConfidenceThreshold(parseFloat(e.target.value))}
+                className="w-full h-3 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Lenient</span>
+                <span>Strict</span>
               </div>
             </div>
 
             {/* Current Detection Parameters */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
               <div className="bg-gray-800 p-3 rounded-lg">
-                <div className="text-gray-400">Min Samples</div>
-                <div className="font-bold">{DETECTION_CONFIG.MIN_SAMPLES}</div>
+                <div className="text-gray-400">Spike Mult</div>
+                <div className="font-bold text-cyan-400">{DETECTION_CONFIG.SPIKE_MULTIPLIER}x</div>
               </div>
               <div className="bg-gray-800 p-3 rounded-lg">
-                <div className="text-gray-400">Min SNR</div>
-                <div className="font-bold">{DETECTION_CONFIG.MIN_SNR}</div>
+                <div className="text-gray-400">Min Spike</div>
+                <div className="font-bold">{DETECTION_CONFIG.MIN_ABSOLUTE_SPIKE} ADC</div>
               </div>
               <div className="bg-gray-800 p-3 rounded-lg">
-                <div className="text-gray-400">Freq Range</div>
-                <div className="font-bold">{DETECTION_CONFIG.MIN_DOMINANT_FREQ}-{DETECTION_CONFIG.MAX_DOMINANT_FREQ} Hz</div>
+                <div className="text-gray-400">Min Peak</div>
+                <div className="font-bold">{DETECTION_CONFIG.MIN_PEAK_HEIGHT} ADC</div>
               </div>
               <div className="bg-gray-800 p-3 rounded-lg">
-                <div className="text-gray-400">Threshold</div>
-                <div className="font-bold text-cyan-400">{customThreshold.toFixed(1)}x</div>
+                <div className="text-gray-400">Gain</div>
+                <div className="font-bold">{DETECTION_CONFIG.GAIN}x</div>
               </div>
             </div>
           </div>

@@ -32,4 +32,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1000, // Increase limit to 1MB
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split vendor chunks
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth'],
+        },
+      },
+    },
+  },
 });
