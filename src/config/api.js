@@ -10,10 +10,17 @@ export const ENDPOINTS = {
     STATUS: '/status',
     RESET_MODEL: '/reset_model',
     DATASET: '/dataset',
+    DATASET_DOWNLOAD: '/dataset/download',
+    DATASET_UPLOAD: '/dataset/upload',
+    TRAIN: '/train',
+    FEATURES: '/model/features',
 };
 
-// Available persons for training/prediction
-export const PERSONS = ['Pranshul', 'Aditi', 'Apurv', 'Samir'];
+// Binary classification labels
+export const LABELS = {
+    HOME: 'HOME',
+    INTRUDER: 'INTRUDER'
+};
 
 // Serial/Buffer Configuration
 export const BUFFER_CONFIG = {
@@ -78,10 +85,10 @@ export const api = {
 
     /**
      * Train the model with existing data
-     * @param {string} label - Current person label (required by API)
+     * @param {string} label - Current mode label (HOME or INTRUDER)
      * @returns {Promise<{success: boolean, metrics: Object}>}
      */
-    async trainModel(label = 'Pranshul') {
+    async trainModel(label = 'HOME') {
         const response = await fetch(`${API_BASE_URL}${ENDPOINTS.TRAIN_DATA}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -94,6 +101,24 @@ export const api = {
 
         if (!response.ok) {
             throw new Error(`Training failed: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Explicitly train the binary classifier
+     * @returns {Promise<{success: boolean, metrics: Object}>}
+     */
+    async trainBinaryClassifier() {
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.TRAIN}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `Training failed: ${response.status}`);
         }
 
         return response.json();
@@ -172,18 +197,73 @@ export const api = {
     },
 
     /**
-     * Delete all data for a specific person
-     * @param {string} personName - Name of the person to delete
+     * Delete all data for a specific person/class
+     * @param {string} className - Name of the class to delete (HOME or INTRUDER)
      * @returns {Promise<{success: boolean, message: string}>}
      */
-    async deletePerson(personName) {
-        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.DATASET}/${encodeURIComponent(personName)}`, {
+    async deletePerson(className) {
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.DATASET}/${encodeURIComponent(className)}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
         });
 
         if (!response.ok) {
             throw new Error(`Delete failed: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Download the complete dataset as ZIP
+     * @returns {Promise<Blob>}
+     */
+    async downloadDataset() {
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.DATASET_DOWNLOAD}`, {
+            method: 'GET',
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `Download failed: ${response.status}`);
+        }
+
+        return response.blob();
+    },
+
+    /**
+     * Upload a dataset ZIP file
+     * @param {File} file - ZIP file to upload
+     * @returns {Promise<{success: boolean, imported_samples: number, samples_per_person: Object}>}
+     */
+    async uploadDataset(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.DATASET_UPLOAD}`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.detail || `Upload failed: ${response.status}`);
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Get feature names used by the model
+     * @returns {Promise<{feature_count: number, features: string[], categories: Object}>}
+     */
+    async getFeatureNames() {
+        const response = await fetch(`${API_BASE_URL}${ENDPOINTS.FEATURES}`, {
+            method: 'GET',
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch features: ${response.status}`);
         }
 
         return response.json();
