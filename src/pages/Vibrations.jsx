@@ -284,7 +284,8 @@ function Vibrations() {
   const fetchStatus = async () => {
     try {
       const result = await api.getStatus();
-      setSampleCounts(result.samples_per_person || {});
+      const samplesPerPerson = result.samples_per_person || {};
+      setSampleCounts(samplesPerPerson);
 
       // Fetch dual dataset status and MLP model status
       try {
@@ -292,20 +293,25 @@ function Vibrations() {
         console.log('[fetchStatus] Dataset status:', datasetStatus);
         if (datasetStatus.dual_dataset) {
           setDualDatasetStatus(datasetStatus.dual_dataset);
-
-          // Update available datasets from persons list
-          const persons = datasetStatus.dual_dataset.home_csv?.persons || [];
-          if (persons.length > 0) {
-            setAvailableDatasets(persons);
-            // Auto-select all datasets if none selected
-            if (selectedDatasets.length === 0) {
-              setSelectedDatasets(persons);
-            }
-          }
         }
         if (datasetStatus.mlp_model) {
           console.log('[fetchStatus] MLP status:', datasetStatus.mlp_model);
           setMlpModelStatus(datasetStatus.mlp_model);
+        }
+
+        // Update available datasets from sample_counts (full names like HOME_Apurv)
+        // This is more reliable than home_csv.persons which only has short names
+        const datasetNames = Object.keys(samplesPerPerson).filter(name =>
+          name.toUpperCase().startsWith('HOME')
+        );
+        console.log('[fetchStatus] Available datasets:', datasetNames);
+
+        if (datasetNames.length > 0) {
+          setAvailableDatasets(datasetNames);
+          // Auto-select all datasets if none selected
+          if (selectedDatasets.length === 0) {
+            setSelectedDatasets(datasetNames);
+          }
         }
       } catch (e) {
         console.log("Dataset status not available (backend may need update)", e);
@@ -732,25 +738,73 @@ function Vibrations() {
       return showToast("⚠ No validated events to save.", "warning");
     }
 
+    // Require person name for saving
+    if (!labelName.trim()) {
+      return showToast("⚠ Please enter a person name before saving!", "warning");
+    }
+
     const effectiveLabel = getEffectiveLabel();
     setIsSaving(true);
-    setStatus(`⬆ Uploading samples as "${effectiveLabel}"...`);
+    setStatus(`⬆ Uploading ${validatedEvents.length} samples as "${effectiveLabel}"...`);
 
     try {
-      let savedCount = 0;
+      let frontendConverted = 0;
+      let frontendRejected = 0;
+      let backendSaved = 0;
+      let backendRejected = 0;
+
       for (const event of validatedEvents) {
         const backendData = FootstepEventDetector.toBackendFormat(event);
-        if (backendData) {
-          await api.saveTrainData(backendData, effectiveLabel);
-          savedCount++;
+
+        if (!backendData) {
+          frontendRejected++;
+          console.log(`⛔ Frontend rejected event:`, {
+            hasRaw: !!event.raw,
+            isNoise: event.isNoise,
+            rejected: event.rejected,
+            rawLength: event.raw?.length
+          });
+          continue;
+        }
+
+        frontendConverted++;
+
+        // Send to backend and check actual save result
+        const result = await api.saveTrainData(backendData, effectiveLabel);
+
+        if (result.valid_samples > 0) {
+          backendSaved++;
+        } else {
+          backendRejected++;
+          console.log(`⛔ Backend rejected sample (amplitude gate):`, {
+            dataLength: backendData.length,
+            max: Math.max(...backendData),
+            min: Math.min(...backendData),
+            range: Math.max(...backendData) - Math.min(...backendData)
+          });
         }
       }
 
       await fetchStatus();
       setValidatedEvents([]);
 
-      showToast(`✅ Saved ${savedCount} samples as "${effectiveLabel}"!`, 'success');
-      setStatus(`✅ Saved ${savedCount} samples as "${effectiveLabel}"`);
+      // Detailed save summary
+      const totalEvents = validatedEvents.length;
+      const totalRejected = frontendRejected + backendRejected;
+
+      if (totalRejected > 0) {
+        console.log(`📊 Save Summary: ${backendSaved}/${totalEvents} saved`);
+        console.log(`   Frontend rejected: ${frontendRejected} (noise/invalid)`);
+        console.log(`   Backend rejected: ${backendRejected} (low amplitude)`);
+        showToast(
+          `⚠️ Saved ${backendSaved}/${totalEvents} samples. ${totalRejected} rejected (${frontendRejected} noise, ${backendRejected} low amplitude)`,
+          backendSaved > 0 ? 'warning' : 'error'
+        );
+      } else {
+        showToast(`✅ Saved ${backendSaved} samples as "${effectiveLabel}"!`, 'success');
+      }
+
+      setStatus(`✅ Saved ${backendSaved}/${totalEvents} samples as "${effectiveLabel}"`);
     } catch (error) {
       showToast(`❌ Save failed: ${error.message}`, 'error');
       setStatus(`❌ Save failed: ${error.message}`);
@@ -1102,27 +1156,33 @@ function Vibrations() {
 
       {/* SAVE LABEL SELECTOR + SETTINGS */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* PERSON NAME INPUT - Always saves as HOME */}
-        <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
-          <label className="block text-sm text-gray-400 mb-2 font-semibold">👤 Person Name for Dataset:</label>
+        {/* PERSON NAME INPUT - Required, always saves as HOME_name */}
+        <div className={`bg-gray-800/50 p-4 rounded-xl border ${labelName.trim() ? 'border-green-600' : 'border-yellow-600'}`}>
+          <label className="block text-sm text-gray-400 mb-2 font-semibold">
+            👤 Person Name for Dataset: <span className="text-red-400">*</span>
+          </label>
           <div className="flex gap-2 mb-2">
             <input
               type="text"
               value={labelName}
               onChange={(e) => setLabelName(e.target.value)}
-              placeholder="e.g., Pranshul, Aditi, Samir..."
-              className="flex-1 text-white bg-gray-700 p-3 rounded-lg border border-gray-600 focus:border-cyan-500 focus:outline-none"
-              onKeyPress={(e) => e.key === 'Enter' && showToast(`✅ Label: ${getEffectiveLabel()}`, 'success')}
+              placeholder="Enter name (required)..."
+              className={`flex-1 text-white bg-gray-700 p-3 rounded-lg border focus:outline-none ${labelName.trim() ? 'border-green-600 focus:border-green-500' : 'border-yellow-600 focus:border-yellow-500'
+                }`}
+              onKeyPress={(e) => e.key === 'Enter' && labelName.trim() && showToast(`✅ Label: ${getEffectiveLabel()}`, 'success')}
             />
             <button
-              onClick={() => showToast(`✅ Label: ${getEffectiveLabel()}`, 'success')}
+              onClick={() => labelName.trim() ? showToast(`✅ Label: ${getEffectiveLabel()}`, 'success') : showToast('⚠️ Enter a name first!', 'warning')}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg font-bold transition-all"
             >
               Set
             </button>
           </div>
           <p className="text-xs text-gray-500">
-            Saving as: <strong className="text-base text-green-400">{getEffectiveLabel()}</strong>
+            {labelName.trim()
+              ? <>Saving as: <strong className="text-base text-green-400">{getEffectiveLabel()}</strong></>
+              : <span className="text-yellow-400">⚠️ Name required to save samples</span>
+            }
             <span className="ml-2 text-gray-600">• INTRUDER is detected by MLP, not stored</span>
           </p>
         </div>
@@ -1910,27 +1970,30 @@ function Vibrations() {
                       </tr>
                     </thead>
                     <tbody>
-                      {datasetInfo.persons?.map((person) => (
-                        <tr key={person.name} className="border-b border-gray-800 hover:bg-gray-800/50">
-                          <td className="p-3">
-                            <span className={`px-2 py-1 rounded text-sm ${person.name === 'HOME' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-                              }`}>
-                              {person.name === 'HOME' ? '🏠' : '🚨'} {person.name}
-                            </span>
-                          </td>
-                          <td className="p-3 text-gray-400">{person.type || person.name}</td>
-                          <td className="p-3 font-bold">{person.samples}</td>
-                          <td className="p-3">
-                            <button
-                              onClick={() => handleDeletePerson(person.name)}
-                              disabled={isDeleting || person.samples === 0}
-                              className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-full text-sm flex items-center gap-1 disabled:opacity-50 transition"
-                            >
-                              <Trash2 className="w-4" /> Delete
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {datasetInfo.persons?.map((person) => {
+                        // All HOME_ prefixed datasets are HOME class (green)
+                        const isHome = person.name.toUpperCase().startsWith('HOME');
+                        return (
+                          <tr key={person.name} className="border-b border-gray-800 hover:bg-gray-800/50">
+                            <td className="p-3">
+                              <span className={`px-2 py-1 rounded text-sm ${isHome ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                {isHome ? '🏠' : '🚨'} {person.name}
+                              </span>
+                            </td>
+                            <td className="p-3 text-gray-400">{person.type || (isHome ? 'HOME' : 'UNKNOWN')}</td>
+                            <td className="p-3 font-bold">{person.samples}</td>
+                            <td className="p-3">
+                              <button
+                                onClick={() => handleDeletePerson(person.name)}
+                                disabled={isDeleting || person.samples === 0}
+                                className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded-full text-sm flex items-center gap-1 disabled:opacity-50 transition"
+                              >
+                                <Trash2 className="w-4" /> Delete
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
