@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import VoiceAssistant from "./components/VoiceAssistant"; // ✅ ADDED
 
 import Home from "./pages/Home";
 import Vibrations from "./pages/Vibrations";
@@ -35,6 +36,9 @@ function App() {
     <Router>
       <div className="min-h-screen transition-colors duration-300">
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+
+          {/* 🎙️ GLOBAL VOICE ASSISTANT (Only when logged in) */}
+          {user && <VoiceAssistant />}
 
           {/* Navbar only when logged in */}
           {user && (
@@ -105,7 +109,7 @@ function App() {
               }
             />
 
-            {/* New Sidebar-linked Pages */}
+            {/* Sidebar-linked Pages */}
             <Route
               path="/profile"
               element={
@@ -119,7 +123,7 @@ function App() {
               path="/settings"
               element={
                 <ProtectedRoute>
-                  <Settings/>
+                  <Settings />
                 </ProtectedRoute>
               }
             />
