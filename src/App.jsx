@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
-import VoiceAssistant from "./components/VoiceAssistant"; // ✅ ADDED
+// import VoiceAssistant from "./components/VoiceAssistant"; // 🔇 DISABLED - Component kept for future use
 
 import Home from "./pages/Home";
 import Vibrations from "./pages/Vibrations";
@@ -37,8 +37,8 @@ function App() {
       <div className="min-h-screen transition-colors duration-300">
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 
-          {/* 🎙️ GLOBAL VOICE ASSISTANT (Only when logged in) */}
-          {user && <VoiceAssistant />}
+          {/* 🎙️ GLOBAL VOICE ASSISTANT (Disabled - uncomment to enable) */}
+          {/* {user && <VoiceAssistant />} */}
 
           {/* Navbar only when logged in */}
           {user && (
