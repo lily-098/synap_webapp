@@ -1,157 +1,228 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🔧 DEVELOPMENT MODE CONFIGURATION
-// ═══════════════════════════════════════════════════════════════════════════════
-const DEV_MODE = import.meta.env.DEV || true; // Auto-detects dev environment
-const DEV_CONFIG = {
-  showDebugPanel: true,        // Show floating debug panel
-  showTranscript: true,        // Show real-time transcript
-  logToConsole: true,          // Detailed console logging
-  mockSpeechSynthesis: false,  // Use mock TTS (no audio)
-  mockSpeechRecognition: false, // Use text input instead of mic
-  showCommandHistory: true,    // Show command history in panel
-  maxHistoryItems: 10,         // Max items in history
-  showAnswerPanel: true,       // Show floating answer panel
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// 📚 SYNAPSENSE KNOWLEDGE BASE (Dynamic Q&A System)
+// 📚 SYNAPSENSE KNOWLEDGE BASE (Professional Q&A System)
 // ═══════════════════════════════════════════════════════════════════════════════
 const KNOWLEDGE_BASE = [
   {
     topic: "what_is_synapsense",
     keywords: ["what", "synapsense", "what is", "explain", "tell me about", "describe", "introduction", "overview"],
+    question: "What is SynapSense?",
     answer: "SynapSense is a cutting-edge vibration-based detection and monitoring system that uses advanced seismic sensor technology to provide comprehensive security and surveillance capabilities. It analyzes ground vibrations with military-grade precision to detect, classify, and alert you to various types of movement and activity in real-time.",
-    shortAnswer: "SynapSense is an advanced vibration-based security system using seismic sensors for real-time threat detection."
+    shortAnswer: "SynapSense is an advanced vibration-based security system using seismic sensors for real-time threat detection.",
+    category: "overview"
   },
   {
     topic: "how_it_works",
     keywords: ["how", "work", "works", "working", "function", "functions", "operate", "operation", "process", "mechanism"],
+    question: "How does SynapSense work?",
     answer: "SynapSense works by using high-sensitivity geophone sensors that detect micro-vibrations in the ground. The system processes thousands of data points per second using Fast Fourier Transform (FFT) analysis and machine learning algorithms. It distinguishes between harmless environmental noise and genuine security concerns, providing real-time alerts within milliseconds.",
-    shortAnswer: "It uses seismic sensors and FFT analysis with machine learning to detect and classify vibrations in real-time."
+    shortAnswer: "It uses seismic sensors and FFT analysis with machine learning to detect and classify vibrations in real-time.",
+    category: "technology"
+  },
+  {
+    topic: "benefits",
+    keywords: ["benefit", "benefits", "advantage", "advantages", "why use", "useful", "help", "value", "worth", "important"],
+    question: "What are the benefits of using SynapSense?",
+    answer: "SynapSense offers several key benefits: 1) 24/7 automated surveillance without human fatigue, 2) Detection of threats before visual contact is possible, 3) Works in complete darkness and adverse weather conditions, 4) Invisible to intruders - cannot be seen or disabled, 5) Low false alarm rates thanks to AI-powered classification, 6) Seamless integration with existing security systems, 7) Remote monitoring capability from anywhere in the world.",
+    shortAnswer: "24/7 invisible surveillance that works in any condition with minimal false alarms.",
+    category: "overview"
   },
   {
     topic: "accuracy",
     keywords: ["accuracy", "accurate", "precision", "reliable", "reliability", "false alarm", "false positive", "detection rate", "percentage", "how accurate"],
+    question: "How accurate is SynapSense?",
     answer: "SynapSense maintains a detection accuracy of 98.7% under normal operating conditions. The system uses multiple validation techniques including pattern recognition, frequency analysis, and amplitude threshold detection. Continuous machine learning improvements and regular calibration ensure consistent high accuracy with minimal false alarms.",
-    shortAnswer: "SynapSense has 98.7% detection accuracy with minimal false alarms using ML-based validation."
+    shortAnswer: "SynapSense has 98.7% detection accuracy with minimal false alarms using ML-based validation.",
+    category: "technology"
   },
   {
     topic: "threats_detection",
     keywords: ["threat", "threats", "detect", "detection", "intruder", "intrusion", "security", "danger", "dangerous", "alert", "what can", "types", "classify"],
+    question: "What types of threats can SynapSense detect?",
     answer: "SynapSense can detect and classify multiple types of vibration sources including human footsteps, animal movements, vehicle activity, machinery vibrations, and environmental noise. It distinguishes between authorized and unauthorized movements, identifies patterns consistent with security threats, and filters out false positives from natural phenomena like wind or rain.",
-    shortAnswer: "It detects human footsteps, vehicles, animals, and machinery while filtering environmental noise."
+    shortAnswer: "It detects human footsteps, vehicles, animals, and machinery while filtering environmental noise.",
+    category: "features"
   },
   {
     topic: "real_time",
     keywords: ["real time", "realtime", "live", "instant", "immediate", "fast", "speed", "quick", "millisecond", "response time", "latency"],
+    question: "How fast does SynapSense respond?",
     answer: "SynapSense provides millisecond-level detection and instant notifications for rapid response to potential security events. The system processes vibration data continuously and can classify threats within milliseconds of detection, enabling immediate alerts to security personnel.",
-    shortAnswer: "Millisecond-level detection with instant real-time alerts for rapid security response."
+    shortAnswer: "Millisecond-level detection with instant real-time alerts for rapid security response.",
+    category: "technology"
   },
   {
     topic: "technology",
     keywords: ["technology", "tech", "technical", "sensor", "sensors", "fft", "fourier", "algorithm", "machine learning", "ml", "ai", "neural", "signal processing"],
+    question: "What technology powers SynapSense?",
     answer: "SynapSense uses multiple technologies: High-sensitivity geophone sensors for vibration detection, FFT (Fast Fourier Transform) for frequency analysis, advanced digital signal processing for noise filtering, and neural network models trained on millions of vibration signatures for accurate classification. The system continuously learns and adapts to environmental changes.",
-    shortAnswer: "Uses geophone sensors, FFT analysis, signal processing, and neural networks for detection."
+    shortAnswer: "Uses geophone sensors, FFT analysis, signal processing, and neural networks for detection.",
+    category: "technology"
   },
   {
     topic: "use_cases",
-    keywords: ["use case", "application", "who uses", "where", "industry", "sector", "military", "defense", "commercial", "residential", "infrastructure", "benefit", "suitable"],
+    keywords: ["use case", "application", "who uses", "where", "industry", "sector", "military", "defense", "commercial", "residential", "infrastructure", "suitable"],
+    question: "Who uses SynapSense?",
     answer: "SynapSense is suitable for: Military & Defense (perimeter security for bases), Critical Infrastructure (power plants, water facilities, data centers), Commercial Properties (warehouses, manufacturing facilities, corporate campuses), and Residential Security (high-value properties and gated communities). It's trusted by security professionals worldwide.",
-    shortAnswer: "Used in military, critical infrastructure, commercial properties, and high-value residential security."
+    shortAnswer: "Used in military, critical infrastructure, commercial properties, and high-value residential security.",
+    category: "overview"
   },
   {
     topic: "weather",
     keywords: ["weather", "outdoor", "rain", "snow", "temperature", "climate", "environment", "ip67", "waterproof", "resistant", "durable"],
+    question: "Does SynapSense work in all weather conditions?",
     answer: "All SynapSense sensors are designed with IP67 or higher ratings, making them fully weather-resistant and suitable for outdoor deployment. They can operate in temperatures from -40°C to +85°C and are protected against dust, rain, snow, and extreme humidity. Temperature compensation algorithms maintain accuracy across varying conditions.",
-    shortAnswer: "IP67 rated sensors work in all weather, from -40°C to +85°C, fully waterproof and dustproof."
+    shortAnswer: "IP67 rated sensors work in all weather, from -40°C to +85°C, fully waterproof and dustproof.",
+    category: "features"
   },
   {
     topic: "zones",
     keywords: ["zone", "zones", "area", "areas", "multiple", "multi", "simultaneous", "coverage", "monitor", "monitoring"],
+    question: "How many zones can SynapSense monitor?",
     answer: "SynapSense supports multi-zone monitoring with independent sensor arrays for each zone. The system can handle up to 50 zones simultaneously with individual configuration settings, alert rules, and sensitivity levels for each area. A centralized dashboard provides a unified view of all zones.",
-    shortAnswer: "Supports up to 50 independent zones with individual settings and centralized management."
+    shortAnswer: "Supports up to 50 independent zones with individual settings and centralized management.",
+    category: "features"
   },
   {
     topic: "customization",
     keywords: ["custom", "customize", "setting", "settings", "configure", "configuration", "threshold", "sensitivity", "personalize", "adjust", "notification"],
+    question: "Can I customize SynapSense settings?",
     answer: "SynapSense offers comprehensive customization options. Users can set custom sensitivity levels for different zones, configure alert thresholds based on amplitude or frequency characteristics, schedule monitoring periods, and choose notification methods including in-app alerts, email notifications, and SMS messages.",
-    shortAnswer: "Fully customizable sensitivity, thresholds, schedules, and notification preferences per zone."
+    shortAnswer: "Fully customizable sensitivity, thresholds, schedules, and notification preferences per zone.",
+    category: "features"
   },
   {
     topic: "data_storage",
     keywords: ["data", "storage", "history", "historical", "store", "stored", "backup", "cloud", "retention", "export", "report"],
+    question: "How is data stored in SynapSense?",
     answer: "The system stores all vibration data with full waveform retention for 30 days and summary statistics for up to 12 months. Users can access historical graphs, replay past events, generate reports, and export data for external analysis. Secure cloud backup ensures data integrity and availability.",
-    shortAnswer: "30 days full waveform storage, 12 months statistics, with cloud backup and export options."
+    shortAnswer: "30 days full waveform storage, 12 months statistics, with cloud backup and export options.",
+    category: "features"
   },
   {
     topic: "maintenance",
     keywords: ["maintenance", "maintain", "calibrate", "calibration", "update", "service", "battery", "upkeep", "care"],
+    question: "What maintenance does SynapSense require?",
     answer: "SynapSense requires minimal maintenance. Sensors should be calibrated every 6 months for accuracy. The system performs automated daily health checks and alerts if issues are detected. Software updates are automatic, and wireless sensor batteries typically last 2-3 years.",
-    shortAnswer: "Minimal maintenance: 6-month calibration cycle, auto health checks, 2-3 year battery life."
+    shortAnswer: "Minimal maintenance: 6-month calibration cycle, auto health checks, 2-3 year battery life.",
+    category: "features"
   },
   {
     topic: "false_alarms",
     keywords: ["false alarm", "false positive", "reduce", "minimize", "filter", "noise", "unwanted", "mistake", "error"],
+    question: "How does SynapSense reduce false alarms?",
     answer: "SynapSense employs multiple layers of false alarm reduction including adaptive threshold adjustment, pattern verification, temporal correlation analysis, and machine learning classification. Environmental conditions are continuously monitored and factored into detection algorithms. Users can also define exclusion zones and time-based filtering.",
-    shortAnswer: "Multi-layer false alarm reduction using adaptive thresholds, ML classification, and pattern analysis."
+    shortAnswer: "Multi-layer false alarm reduction using adaptive thresholds, ML classification, and pattern analysis.",
+    category: "technology"
   },
   {
     topic: "purpose_mission",
     keywords: ["purpose", "mission", "goal", "objective", "why", "vision", "aim"],
+    question: "What is SynapSense's mission?",
     answer: "At SynapSense, our mission is to provide the most advanced, reliable, and intelligent vibration detection technology to protect what matters most. We believe security should be proactive, not reactive. By detecting threats before they materialize and providing actionable intelligence in real-time, we empower clients to maintain safe, secure environments.",
-    shortAnswer: "To provide proactive, intelligent security that detects threats before they materialize."
+    shortAnswer: "To provide proactive, intelligent security that detects threats before they materialize.",
+    category: "overview"
   },
   {
     topic: "contact_support",
     keywords: ["contact", "support", "help", "assistance", "reach", "phone", "email", "team", "customer service"],
+    question: "How can I get support?",
     answer: "Our support team is available 24/7 to help you with any questions or concerns about SynapSense. You can reach us through the Contact page in the app, email us at support@synapsense.com, or call our helpline. We're committed to ensuring you get the most out of our vibration detection system.",
-    shortAnswer: "24/7 support available via the Contact page, email, or helpline."
+    shortAnswer: "24/7 support available via the Contact page, email, or helpline.",
+    category: "support"
   },
   {
     topic: "dashboard",
     keywords: ["dashboard", "interface", "ui", "display", "screen", "view", "home", "main"],
+    question: "What can I see on the Dashboard?",
     answer: "The SynapSense Dashboard provides a real-time overview of your security system. It shows live detection status, today's events summary, threat classification (safe vs danger), detection accuracy, busiest hours, alarm counts, and detailed analytics graphs. You can quickly navigate to notifications, vibrations, and other sections.",
-    shortAnswer: "Real-time dashboard showing live status, events, analytics, and quick navigation."
+    shortAnswer: "Real-time dashboard showing live status, events, analytics, and quick navigation.",
+    category: "navigation"
   },
   {
     topic: "vibrations_page",
     keywords: ["vibration page", "live vibration", "signal", "wave", "waveform", "graph", "visualization", "live signal"],
+    question: "What is the Vibrations page?",
     answer: "The Vibrations page shows real-time signal visualization with live waveform displays. You can see the actual vibration patterns being detected by sensors, analyze frequency components, and monitor signal strength. It connects to sensors via WebSocket for live data streaming.",
-    shortAnswer: "Real-time waveform visualization of live sensor signals with frequency analysis."
+    shortAnswer: "Real-time waveform visualization of live sensor signals with frequency analysis.",
+    category: "navigation"
   },
   {
     topic: "notifications",
     keywords: ["notification", "notifications", "alert", "alerts", "warning", "event", "events", "history", "log"],
+    question: "How do notifications work?",
     answer: "The Notifications page displays all security events and alerts. You can view event history, see threat classifications, check timestamps, and review details of each detection. Events are categorized by type (known/unknown, safe/danger) with filtering options.",
-    shortAnswer: "View all security alerts and events with classification, history, and filtering options."
+    shortAnswer: "View all security alerts and events with classification, history, and filtering options.",
+    category: "navigation"
   },
   {
     topic: "profile_settings",
     keywords: ["profile", "account", "user", "personal", "my info", "my account"],
+    question: "Where can I manage my profile?",
     answer: "The Profile page lets you manage your account information, view your activity history, and customize your personal preferences. You can update your details and see your interaction history with the system.",
-    shortAnswer: "Manage your account, view activity history, and customize personal preferences."
+    shortAnswer: "Manage your account, view activity history, and customize personal preferences.",
+    category: "navigation"
   },
   {
     topic: "esp32_hardware",
     keywords: ["esp32", "hardware", "device", "microcontroller", "iot", "sensor device", "equipment", "physical"],
+    question: "What hardware does SynapSense use?",
     answer: "SynapSense uses ESP32 microcontrollers connected to seismic sensors. The hardware communicates via WebSocket protocol at 192.168.4.1:81. The system processes sensor data locally and sends classified events to the web dashboard in real-time.",
-    shortAnswer: "ESP32 microcontrollers with seismic sensors, communicating via WebSocket."
+    shortAnswer: "ESP32 microcontrollers with seismic sensors, communicating via WebSocket.",
+    category: "technology"
   },
   {
     topic: "greeting",
     keywords: ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening", "howdy"],
+    question: "Hello!",
     answer: "Hello! I'm the SynapSense Voice Assistant. I can help you navigate the app and answer questions about our vibration-based security system. Try asking me things like 'What is SynapSense?' or 'How accurate is the detection?' or simply say 'Open dashboard'.",
-    shortAnswer: "Hello! I'm here to help you with SynapSense. Ask me anything!"
+    shortAnswer: "Hello! I'm here to help you with SynapSense. Ask me anything!",
+    category: "greeting"
   },
   {
     topic: "capabilities",
     keywords: ["what can you do", "your features", "capabilities", "abilities", "commands", "help me", "assist"],
+    question: "What can you help me with?",
     answer: "I can help you with: 1) Navigating the app - say 'Open dashboard', 'Show vibrations', 'Go to settings', etc. 2) Answering questions about SynapSense - ask about accuracy, technology, features, or any topic. 3) Explaining how the system works. Just ask naturally, I understand context!",
-    shortAnswer: "I navigate the app and answer questions about SynapSense. Ask anything!"
+    shortAnswer: "I navigate the app and answer questions about SynapSense. Ask anything!",
+    category: "support"
+  },
+  {
+    topic: "security_privacy",
+    keywords: ["security", "privacy", "safe", "secure", "encrypt", "encryption", "data protection", "private"],
+    question: "Is my data secure with SynapSense?",
+    answer: "SynapSense takes data security seriously. All data is encrypted in transit and at rest using industry-standard AES-256 encryption. User authentication is protected by multi-factor authentication, and access controls ensure only authorized personnel can view sensitive data. We comply with major security standards and regulations.",
+    shortAnswer: "AES-256 encryption, multi-factor authentication, and strict access controls protect your data.",
+    category: "features"
+  },
+  {
+    topic: "integration",
+    keywords: ["integrate", "integration", "connect", "api", "third party", "external", "compatible", "compatibility"],
+    question: "Can SynapSense integrate with other systems?",
+    answer: "SynapSense offers extensive integration capabilities through RESTful APIs and WebSocket connections. You can integrate with existing CCTV systems, access control systems, alarm panels, and SIEM platforms. Custom integrations are also possible through our developer documentation.",
+    shortAnswer: "RESTful APIs and WebSocket enable integration with CCTV, access control, and alarm systems.",
+    category: "features"
+  },
+  {
+    topic: "cost_pricing",
+    keywords: ["cost", "price", "pricing", "expensive", "affordable", "subscription", "license", "pay"],
+    question: "What does SynapSense cost?",
+    answer: "SynapSense offers flexible pricing plans to suit different needs. Contact our sales team for a customized quote based on your specific requirements, including the number of zones, sensor count, and desired features. We offer both subscription and perpetual licensing options.",
+    shortAnswer: "Flexible pricing available. Contact sales for a customized quote based on your needs.",
+    category: "support"
   }
+];
+
+// Suggested questions grouped by category
+const SUGGESTED_QUESTIONS = [
+  { text: "What is SynapSense?", category: "overview" },
+  { text: "How does it work?", category: "technology" },
+  { text: "What are the benefits?", category: "overview" },
+  { text: "How accurate is it?", category: "technology" },
+  { text: "What can it detect?", category: "features" },
+  { text: "Who uses SynapSense?", category: "overview" },
 ];
 
 const SpeechRecognition =
@@ -160,291 +231,167 @@ const SpeechRecognition =
 export default function VoiceAssistant() {
   const navigate = useNavigate();
   const recognitionRef = useRef(null);
+  const answerPanelRef = useRef(null);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎯 STATE MANAGEMENT (Dev Mode)
+  // 🎯 STATE MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════════
   const [isListening, setIsListening] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
-  const [lastIntent, setLastIntent] = useState("");
-  const [commandHistory, setCommandHistory] = useState([]);
-  const [showDevPanel, setShowDevPanel] = useState(DEV_MODE && DEV_CONFIG.showDebugPanel);
-  const [mockInput, setMockInput] = useState("");
+  const [textInput, setTextInput] = useState("");
   const [status, setStatus] = useState("idle"); // idle, listening, processing, speaking, error
-  const [errorLog, setErrorLog] = useState([]);
-
-  // 💬 Answer Display State
-  const [showAnswerPanel, setShowAnswerPanel] = useState(false);
-  const [currentAnswer, setCurrentAnswer] = useState(null);
+  const [conversationHistory, setConversationHistory] = useState([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 📝 DEV LOGGER
+  // 🛑 STOP SPEAKING
   // ═══════════════════════════════════════════════════════════════════════════
-  const devLog = (type, message, data = null) => {
-    if (!DEV_MODE || !DEV_CONFIG.logToConsole) return;
-
-    const timestamp = new Date().toLocaleTimeString();
-    const prefix = {
-      info: "ℹ️",
-      success: "✅",
-      warning: "⚠️",
-      error: "❌",
-      speech: "🎙️",
-      intent: "🧠",
-    }[type] || "📌";
-
-    console.log(`[${timestamp}] ${prefix} [VoiceAssistant] ${message}`, data || "");
-
-    if (type === "error") {
-      setErrorLog(prev => [...prev.slice(-4), { timestamp, message, data }]);
+  const stopSpeaking = useCallback(() => {
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setStatus("idle");
     }
-  };
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🔊 SPEAK (with Dev Mode support)
+  // 🔊 SPEAK
   // ═══════════════════════════════════════════════════════════════════════════
-  const speak = (text) => {
-    devLog("speech", `Speaking: "${text}"`);
-    setStatus("speaking");
-
-    if (DEV_MODE && DEV_CONFIG.mockSpeechSynthesis) {
-      devLog("info", "Mock TTS - No audio output");
-      setTimeout(() => setStatus("idle"), 1000);
-      return;
-    }
-
+  const speak = useCallback((text) => {
     speechSynthesis.cancel();
+    setStatus("speaking");
+    setIsSpeaking(true);
+
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "en-IN";
+    utterance.lang = "en-US";
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
 
     utterance.onend = () => {
-      devLog("info", "Speech synthesis completed");
       setStatus("idle");
+      setIsSpeaking(false);
     };
 
-    utterance.onerror = (e) => {
-      devLog("error", "Speech synthesis error", e);
-      setStatus("error");
+    utterance.onerror = () => {
+      setStatus("idle");
+      setIsSpeaking(false);
     };
 
     speechSynthesis.speak(utterance);
-  };
+  }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🔇 STOP SPEAKING
-  // ═══════════════════════════════════════════════════════════════════════════
-  const stopSpeaking = () => {
-    if (speechSynthesis.speaking) {
-      devLog("info", "Stopping speech synthesis");
-      speechSynthesis.cancel();
-      setStatus("idle");
-    }
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🧠 NAVIGATION INTENT RESOLVER
+  // 🧠 INTENT MAP FOR NAVIGATION
   // ═══════════════════════════════════════════════════════════════════════════
   const INTENT_MAP = [
-    { pattern: /(go to |open |show |navigate to )?(home|dashboard|main)/i, route: "/", response: "Opening home page" },
-    { pattern: /(go to |open |show |navigate to )?(vibration|signal|wave|live signal)/i, route: "/vibrations", response: "Showing live vibrations" },
-    { pattern: /(go to |open |show |navigate to )?(notification|alert|intruder|events)/i, route: "/notifications", response: "Opening notifications" },
-    { pattern: /(go to |open |show |navigate to )?(profile|account|my profile|my account)/i, route: "/profile", response: "Opening your profile" },
-    { pattern: /(go to |open |show |navigate to )?(setting|settings|preference|configure)/i, route: "/settings", response: "Opening settings" },
-    { pattern: /(go to |open |show |navigate to )?(faq|faqs|help section)/i, route: "/faqs", response: "Opening help section" },
-    { pattern: /(go to |open |show |navigate to )?(about|about page|information)/i, route: "/about", response: "Opening about page" },
-    { pattern: /(go to |open |show |navigate to )?(contact|contacts)/i, route: "/contacts", response: "Opening contacts" },
+    { pattern: /(home|dashboard|main)/, route: "/", response: "Opening home page" },
+    { pattern: /(vibration|signal|wave)/, route: "/vibrations", response: "Showing live vibrations" },
+    { pattern: /(notification|alert|intruder)/, route: "/notifications", response: "Opening notifications" },
+    { pattern: /(profile|account|my profile)/, route: "/profile", response: "Opening your profile" },
+    { pattern: /(setting|settings|preference)/, route: "/settings", response: "Opening settings" },
+    { pattern: /(faq|help|question)/, route: "/faqs", response: "Opening help section" },
+    { pattern: /(about|information)/, route: "/about", response: "Opening about page" },
   ];
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🔍 INTELLIGENT Q&A RESOLVER (Dynamic Keyword Matching)
+  // 🔍 FIND BEST ANSWER FROM KNOWLEDGE BASE
   // ═══════════════════════════════════════════════════════════════════════════
-  const findBestAnswer = (query) => {
+  const findAnswer = (query) => {
     const text = query.toLowerCase().trim();
-    devLog("intent", `Searching knowledge base for: "${text}"`);
-
     let bestMatch = null;
-    let highestScore = 0;
+    let maxScore = 0;
 
     for (const entry of KNOWLEDGE_BASE) {
       let score = 0;
-      const words = text.split(/\s+/);
-
-      // Check each keyword for matches
       for (const keyword of entry.keywords) {
-        // Exact phrase match (highest priority)
-        if (text.includes(keyword.toLowerCase())) {
-          score += keyword.split(' ').length * 3; // Multi-word phrases get higher scores
-        }
-
-        // Individual word matches
-        for (const word of words) {
-          if (keyword.toLowerCase().includes(word) && word.length > 2) {
-            score += 1;
-          }
+        if (text.includes(keyword)) {
+          score += keyword.split(" ").length; // Multi-word keywords get higher scores
         }
       }
-
-      // Boost score for topic-related words in query
-      const topicWords = entry.topic.split('_');
-      for (const topicWord of topicWords) {
-        if (text.includes(topicWord)) {
-          score += 2;
-        }
-      }
-
-      if (score > highestScore) {
-        highestScore = score;
+      if (score > maxScore) {
+        maxScore = score;
         bestMatch = entry;
       }
     }
 
-    devLog("info", `Best match score: ${highestScore}`, bestMatch?.topic);
-
-    // Require minimum score threshold for a valid match
-    if (highestScore >= 2 && bestMatch) {
-      return bestMatch;
-    }
-
-    return null;
+    return maxScore > 0 ? bestMatch : null;
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎯 UNIFIED INTENT & Q&A RESOLVER
+  // 🎯 PROCESS INPUT (Voice or Text)
   // ═══════════════════════════════════════════════════════════════════════════
-  const resolveIntent = (sentence) => {
-    const text = sentence.toLowerCase().trim();
-    devLog("intent", `Resolving intent for: "${text}"`);
+  const processInput = useCallback((input) => {
+    const text = input.toLowerCase().trim();
     setStatus("processing");
 
-    // Check for navigation commands first
+    // Add user message to history
+    setConversationHistory(prev => [...prev, { type: "user", text: input }]);
+
+    // Check for navigation intents first
     for (const intent of INTENT_MAP) {
       if (intent.pattern.test(text)) {
-        devLog("success", `Navigation matched: ${intent.route}`);
-        setLastIntent(`🔗 ${intent.route} → ${intent.response}`);
-        setCurrentAnswer(null);
-        setShowAnswerPanel(false);
         navigate(intent.route);
-        return { type: "navigation", response: intent.response };
+        const response = intent.response;
+        setConversationHistory(prev => [...prev, { type: "assistant", text: response }]);
+        speak(response);
+        return;
       }
     }
 
-    // Check for Q&A (questions about the app)
-    const knowledgeMatch = findBestAnswer(text);
-    if (knowledgeMatch) {
-      devLog("success", `Q&A matched: ${knowledgeMatch.topic}`);
-      setLastIntent(`💬 Q&A: ${knowledgeMatch.topic}`);
-
-      // Set answer for display
-      setCurrentAnswer({
-        question: sentence,
-        topic: knowledgeMatch.topic,
-        shortAnswer: knowledgeMatch.shortAnswer,
-        fullAnswer: knowledgeMatch.answer,
-        timestamp: new Date().toLocaleTimeString(),
-      });
-      setShowAnswerPanel(true);
-
-      return { type: "qa", response: knowledgeMatch.shortAnswer, fullAnswer: knowledgeMatch.answer };
+    // Check knowledge base for answers
+    const match = findAnswer(text);
+    if (match) {
+      const response = match.answer;
+      setConversationHistory(prev => [...prev, { type: "assistant", text: response }]);
+      speak(match.shortAnswer);
+      return;
     }
 
-    devLog("warning", "No intent or Q&A matched", { input: text });
-    setLastIntent("❓ Unable to answer");
-    setCurrentAnswer({
-      question: sentence,
-      topic: "unknown",
-      shortAnswer: "Sorry, I'm unable to answer that question. Please try asking about SynapSense features or use a navigation command.",
-      fullAnswer: "I apologize, but I couldn't find an answer to your question. Here are some things I can help you with:\n\n• What is SynapSense?\n• How does SynapSense work?\n• What is the detection accuracy?\n• What threats can it detect?\n• How do I customize settings?\n• What technology does it use?\n\nYou can also navigate by saying 'Open dashboard', 'Show notifications', or 'Go to settings'.",
-      timestamp: new Date().toLocaleTimeString(),
-    });
-    setShowAnswerPanel(true);
-
-    return { type: "unknown", response: "Sorry, I'm unable to answer that question. Please try asking about SynapSense or use a navigation command." };
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 📜 COMMAND HISTORY
-  // ═══════════════════════════════════════════════════════════════════════════
-  const addToHistory = (command, response, type = "command") => {
-    const entry = {
-      id: Date.now(),
-      command,
-      response,
-      type,
-      timestamp: new Date().toLocaleTimeString(),
-    };
-
-    setCommandHistory(prev => [entry, ...prev].slice(0, DEV_CONFIG.maxHistoryItems));
-    devLog("info", "Added to history", entry);
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🎙️ PROCESS VOICE INPUT
-  // ═══════════════════════════════════════════════════════════════════════════
-  const processVoiceInput = (spokenText) => {
-    devLog("speech", `Processing input: "${spokenText}"`);
-    setCurrentTranscript(spokenText);
-
-    const result = resolveIntent(spokenText);
-    addToHistory(spokenText, result.response, result.type);
-
-    // Speak the response (short answer for Q&A, full response for navigation)
-    speak(result.response);
-  };
+    // Fallback response
+    const fallback = "I'm not sure about that specific question. Try asking about what SynapSense is, how it works, its accuracy, or say 'open dashboard' to navigate the app.";
+    setConversationHistory(prev => [...prev, { type: "assistant", text: fallback }]);
+    speak(fallback);
+  }, [navigate, speak]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🎙️ START LISTENING
   // ═══════════════════════════════════════════════════════════════════════════
-  const startListening = () => {
-    devLog("info", "Starting voice recognition...");
-
-    // Mock mode - skip actual speech recognition
-    if (DEV_MODE && DEV_CONFIG.mockSpeechRecognition) {
-      devLog("info", "Mock mode - Use text input in dev panel");
-      setShowDevPanel(true);
-      return;
-    }
-
+  const startListening = useCallback(() => {
     if (!SpeechRecognition) {
-      devLog("error", "Speech recognition not supported");
-      alert("Speech recognition not supported in this browser. Enable mock mode in dev settings.");
+      const errorMsg = "Speech recognition not supported. Please use the text input.";
+      setConversationHistory(prev => [...prev, { type: "assistant", text: errorMsg }]);
       return;
     }
 
-    // Cleanup old instance
     if (recognitionRef.current) {
-      devLog("info", "Aborting previous recognition instance");
       recognitionRef.current.abort();
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = "en-IN";
+    recognition.lang = "en-US";
     recognition.continuous = false;
-    recognition.interimResults = DEV_MODE; // Show interim results in dev mode
+    recognition.interimResults = true;
 
     recognition.onstart = () => {
-      devLog("success", "Recognition started");
       setIsListening(true);
       setStatus("listening");
       setCurrentTranscript("");
-      speak("Listening");
     };
 
     recognition.onresult = (event) => {
       const result = event.results[0];
       const spokenText = result[0].transcript;
-      const confidence = (result[0].confidence * 100).toFixed(1);
-
-      devLog("speech", `Recognized: "${spokenText}" (confidence: ${confidence}%)`);
 
       if (result.isFinal) {
-        processVoiceInput(spokenText);
+        setCurrentTranscript("");
+        processInput(spokenText);
       } else {
-        setCurrentTranscript(`${spokenText} (interim)`);
+        setCurrentTranscript(spokenText);
       }
     };
 
     recognition.onerror = (event) => {
-      devLog("error", `Recognition error: ${event.error}`, event);
       setStatus("error");
       setIsListening(false);
 
@@ -456,49 +403,57 @@ export default function VoiceAssistant() {
         "aborted": "Recognition was aborted.",
       };
 
-      speak(errorMessages[event.error] || "Please try again");
+      const errorMsg = errorMessages[event.error] || "Please try again.";
+      setConversationHistory(prev => [...prev, { type: "assistant", text: errorMsg }]);
     };
 
     recognition.onend = () => {
-      devLog("info", "Recognition ended");
       setIsListening(false);
       if (status === "listening") setStatus("idle");
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  };
+  }, [processInput, status]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🧪 MOCK INPUT HANDLER (Dev Mode)
+  // 📝 HANDLE TEXT SUBMIT
   // ═══════════════════════════════════════════════════════════════════════════
-  const handleMockSubmit = (e) => {
+  const handleTextSubmit = (e) => {
     e.preventDefault();
-    if (!mockInput.trim()) return;
-
-    devLog("info", `Mock input submitted: "${mockInput}"`);
-    processVoiceInput(mockInput);
-    setMockInput("");
+    if (!textInput.trim()) return;
+    processInput(textInput);
+    setTextInput("");
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎨 STATUS COLORS
+  // 🎯 HANDLE SUGGESTED QUESTION CLICK
   // ═══════════════════════════════════════════════════════════════════════════
-  const statusColors = {
-    idle: "bg-slate-500",
-    listening: "bg-emerald-500 animate-pulse",
-    processing: "bg-amber-500",
-    speaking: "bg-indigo-500",
-    error: "bg-rose-500",
+  const handleSuggestedQuestion = (question) => {
+    processInput(question);
   };
 
-  const statusLabels = {
-    idle: "Ready",
-    listening: "🎙️ Listening...",
-    processing: "🧠 Processing...",
-    speaking: "🔊 Speaking...",
-    error: "❌ Error",
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📋 TOGGLE PANEL
+  // ═══════════════════════════════════════════════════════════════════════════
+  const togglePanel = () => {
+    stopSpeaking();
+    setIsPanelOpen(!isPanelOpen);
+    if (!isPanelOpen && conversationHistory.length === 0) {
+      // Welcome message when opening
+      const welcome = "Hello! I'm your SynapSense assistant. Ask me anything about the system or navigate the app.";
+      setConversationHistory([{ type: "assistant", text: welcome }]);
+    }
   };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🧹 SCROLL TO BOTTOM ON NEW MESSAGES
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (answerPanelRef.current) {
+      answerPanelRef.current.scrollTop = answerPanelRef.current.scrollHeight;
+    }
+  }, [conversationHistory]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🧹 CLEANUP
@@ -512,309 +467,212 @@ export default function VoiceAssistant() {
     };
   }, []);
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎨 STATUS INDICATORS
+  // ═══════════════════════════════════════════════════════════════════════════
+  const getStatusStyle = () => {
+    switch (status) {
+      case "listening":
+        return "bg-green-500 animate-pulse shadow-green-500/50";
+      case "processing":
+        return "bg-yellow-500 shadow-yellow-500/50";
+      case "speaking":
+        return "bg-blue-500 shadow-blue-500/50";
+      case "error":
+        return "bg-red-500 shadow-red-500/50";
+      default:
+        return "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/50";
+    }
+  };
+
   return (
     <>
       {/* ═══════════════════════════════════════════════════════════════════════
-          🎙️ MAIN VOICE BUTTON - Professional Design
+          🔘 MAIN FLOATING BUTTON
       ═══════════════════════════════════════════════════════════════════════ */}
       <button
-        onClick={startListening}
-        disabled={isListening}
-        className={`fixed bottom-6 right-6 z-[9999]
-                   ${isListening
-            ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/30"
-            : "bg-gradient-to-br from-indigo-600 to-purple-700 hover:from-indigo-500 hover:to-purple-600 shadow-indigo-500/30"}
-                   text-white w-14 h-14 rounded-2xl
-                   shadow-xl transition-all duration-300 ease-out
-                   ${isListening ? "scale-110 animate-pulse" : "scale-100 hover:scale-105"}
-                   disabled:cursor-not-allowed
-                   flex items-center justify-center
-                   border border-white/20`}
-        title={isListening ? "Listening..." : "Click to speak"}
+        onClick={togglePanel}
+        className={`fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full 
+                   flex items-center justify-center text-white text-2xl
+                   shadow-lg transition-all duration-300 transform
+                   ${isPanelOpen ? "rotate-45 bg-red-500 hover:bg-red-600" : getStatusStyle()}
+                   hover:scale-110`}
+        title={isPanelOpen ? "Close Assistant" : "Open Voice Assistant"}
       >
-        <span className="text-2xl">{isListening ? "🎧" : "🎙️"}</span>
+        {isPanelOpen ? "✕" : "🎙️"}
       </button>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-          🛠️ DEV PANEL TOGGLE
+          📊 PROFESSIONAL ASSISTANT PANEL
       ═══════════════════════════════════════════════════════════════════════ */}
-      {DEV_MODE && (
-        <button
-          onClick={() => setShowDevPanel(!showDevPanel)}
-          className={`fixed bottom-6 right-24 z-[9999]
-                     ${showDevPanel
-              ? "bg-slate-600 border-slate-400"
-              : "bg-slate-700/90 hover:bg-slate-600 border-slate-500/50"}
-                     text-slate-200 hover:text-white w-11 h-11 rounded-xl
-                     shadow-lg transition-all duration-200
-                     flex items-center justify-center
-                     border backdrop-blur-sm`}
-          title="Toggle Dev Panel"
-        >
-          <span className="text-lg">⚙️</span>
-        </button>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          📊 DEVELOPMENT DEBUG PANEL
-      ═══════════════════════════════════════════════════════════════════════ */}
-      {DEV_MODE && showDevPanel && (
-        <div className="fixed bottom-20 right-6 z-[9998] w-80 
-                        bg-slate-900/95 backdrop-blur-md rounded-2xl 
-                        shadow-2xl border border-slate-700/50 
-                        text-white text-sm overflow-hidden">
+      {isPanelOpen && (
+        <div className="fixed bottom-24 right-6 z-[9998] w-96 max-h-[600px]
+                        bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900
+                        rounded-2xl shadow-2xl border border-slate-700/50
+                        overflow-hidden flex flex-col
+                        animate-slideUp backdrop-blur-xl">
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">🤖</span>
-              <span className="font-semibold">SynapSense Assistant</span>
+          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 
+                          px-5 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur">
+                <span className="text-xl">🧠</span>
+              </div>
+              <div>
+                <h3 className="text-white font-semibold text-lg">SynapSense Assistant</h3>
+                <p className="text-indigo-200 text-xs">Ask anything • Navigate anywhere</p>
+              </div>
             </div>
             <button
-              onClick={() => setShowDevPanel(false)}
-              className="text-white/70 hover:text-white hover:bg-white/10 rounded-lg w-7 h-7 flex items-center justify-center transition"
+              onClick={() => { stopSpeaking(); setIsPanelOpen(false); }}
+              className="text-white/70 hover:text-white transition-colors p-1"
             >
-              ✕
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
-          <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-
-            {/* Status */}
-            <div className="flex items-center gap-2 bg-slate-800/50 rounded-lg px-3 py-2">
-              <span className={`w-3 h-3 rounded-full ${statusColors[status]}`}></span>
-              <span className="font-medium">{statusLabels[status]}</span>
-            </div>
-
-            {/* Current Transcript */}
-            {DEV_CONFIG.showTranscript && currentTranscript && (
-              <div className="bg-slate-800 rounded-xl p-3 border border-slate-700/50">
-                <div className="text-xs text-slate-400 mb-1">📝 Transcript</div>
-                <div className="text-emerald-400">"{currentTranscript}"</div>
-              </div>
-            )}
-
-            {/* Last Intent */}
-            {lastIntent && (
-              <div className="bg-slate-800 rounded-xl p-3 border border-slate-700/50">
-                <div className="text-xs text-slate-400 mb-1">🧠 Last Intent</div>
-                <div className="text-indigo-400">{lastIntent}</div>
-              </div>
-            )}
-
-            {/* Mock Input */}
-            <form onSubmit={handleMockSubmit} className="flex gap-2">
-              <input
-                type="text"
-                value={mockInput}
-                onChange={(e) => setMockInput(e.target.value)}
-                placeholder="Ask a question or type a command..."
-                className="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5
-                           text-white placeholder-slate-500 text-sm
-                           focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50
-                           transition-all"
-              />
+          {/* Status Bar */}
+          <div className="px-5 py-2 bg-slate-800/50 border-b border-slate-700/50 flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${status === "listening" ? "bg-green-500 animate-pulse" :
+                status === "speaking" ? "bg-blue-500 animate-pulse" :
+                  status === "processing" ? "bg-yellow-500" :
+                    "bg-slate-500"
+              }`}></span>
+            <span className="text-slate-400 text-xs font-medium">
+              {status === "listening" ? "Listening..." :
+                status === "speaking" ? "Speaking..." :
+                  status === "processing" ? "Processing..." :
+                    "Ready to help"}
+            </span>
+            {isSpeaking && (
               <button
-                type="submit"
-                className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2.5 rounded-xl transition-colors font-medium"
+                onClick={stopSpeaking}
+                className="ml-auto text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
               >
-                ➤
+                <span>■</span> Stop
               </button>
-            </form>
+            )}
+          </div>
 
-            {/* Quick Commands */}
-            <div>
-              <div className="text-xs text-slate-400 mb-2">⚡ Quick Commands</div>
-              <div className="flex flex-wrap gap-1.5">
-                {["home", "vibrations", "notifications", "profile", "settings", "faqs", "about"].map(cmd => (
+          {/* Conversation Area */}
+          <div
+            ref={answerPanelRef}
+            className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px] max-h-[300px]"
+          >
+            {conversationHistory.map((msg, index) => (
+              <div
+                key={index}
+                className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.type === "user"
+                    ? "bg-indigo-600 text-white rounded-br-sm"
+                    : "bg-slate-700/80 text-slate-200 rounded-bl-sm"
+                  }`}>
+                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                </div>
+              </div>
+            ))}
+
+            {/* Interim transcript */}
+            {currentTranscript && (
+              <div className="flex justify-end">
+                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-indigo-600/50 text-white/70 rounded-br-sm">
+                  <p className="text-sm italic">{currentTranscript}...</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Suggested Questions */}
+          {conversationHistory.length <= 1 && (
+            <div className="px-4 pb-3">
+              <p className="text-xs text-slate-500 mb-2 font-medium">Suggested questions:</p>
+              <div className="flex flex-wrap gap-2">
+                {SUGGESTED_QUESTIONS.map((q, index) => (
                   <button
-                    key={cmd}
-                    onClick={() => processVoiceInput(cmd)}
-                    className="bg-slate-700/70 hover:bg-slate-600 px-2.5 py-1 rounded-lg text-xs transition-colors capitalize"
+                    key={index}
+                    onClick={() => handleSuggestedQuestion(q.text)}
+                    className="text-xs px-3 py-1.5 rounded-full 
+                               bg-slate-700/50 text-indigo-300 
+                               hover:bg-indigo-600/30 hover:text-indigo-200
+                               border border-slate-600/50 hover:border-indigo-500/50
+                               transition-all duration-200"
                   >
-                    {cmd}
+                    {q.text}
                   </button>
                 ))}
               </div>
             </div>
+          )}
 
-            {/* Command History */}
-            {DEV_CONFIG.showCommandHistory && commandHistory.length > 0 && (
-              <div>
-                <div className="text-xs text-slate-400 mb-2">📜 History</div>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
-                  {commandHistory.map(entry => (
-                    <div key={entry.id} className="bg-slate-800 rounded-xl p-2.5 text-xs border border-slate-700/50">
-                      <div className="flex justify-between text-slate-500">
-                        <span>{entry.timestamp}</span>
-                      </div>
-                      <div className="text-emerald-400">"{entry.command}"</div>
-                      <div className="text-indigo-400">→ {entry.response}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          {/* Input Area */}
+          <div className="p-4 bg-slate-800/50 border-t border-slate-700/50">
+            <form onSubmit={handleTextSubmit} className="flex gap-2">
+              <input
+                type="text"
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                placeholder="Type your question..."
+                className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded-xl 
+                           px-4 py-3 text-white placeholder-slate-400 text-sm
+                           focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30
+                           transition-all"
+              />
+              <button
+                type="button"
+                onClick={startListening}
+                disabled={isListening}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center
+                           transition-all duration-300 text-lg
+                           ${isListening
+                    ? "bg-green-500 animate-pulse text-white"
+                    : "bg-indigo-600 hover:bg-indigo-500 text-white"}`}
+                title={isListening ? "Listening..." : "Click to speak"}
+              >
+                {isListening ? "🎧" : "🎙️"}
+              </button>
+              <button
+                type="submit"
+                disabled={!textInput.trim()}
+                className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600
+                           hover:from-indigo-500 hover:to-purple-500
+                           text-white flex items-center justify-center
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           transition-all duration-300"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              </button>
+            </form>
+          </div>
 
-            {/* Error Log */}
-            {errorLog.length > 0 && (
-              <div>
-                <div className="text-xs text-rose-400 mb-2">❌ Errors</div>
-                <div className="space-y-1">
-                  {errorLog.map((err, i) => (
-                    <div key={i} className="bg-rose-950/50 rounded-xl p-2.5 text-xs text-rose-300 border border-rose-800/30">
-                      [{err.timestamp}] {err.message}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Dev Config */}
-            <details className="text-xs">
-              <summary className="text-slate-400 cursor-pointer hover:text-slate-300 py-1">
-                ⚙️ Configuration
-              </summary>
-              <pre className="mt-2 bg-slate-800 rounded-xl p-3 overflow-x-auto text-slate-300 border border-slate-700/50">
-                {JSON.stringify(DEV_CONFIG, null, 2)}
-              </pre>
-            </details>
+          {/* Footer */}
+          <div className="px-4 py-2 bg-slate-900/50 border-t border-slate-700/30">
+            <p className="text-center text-slate-500 text-xs">
+              Powered by <span className="text-indigo-400 font-medium">SynapSense AI</span>
+            </p>
           </div>
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          💬 FLOATING ANSWER PANEL (Shows Q&A Responses)
-      ═══════════════════════════════════════════════════════════════════════ */}
-      {showAnswerPanel && currentAnswer && (
-        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[9997] 
-                        w-[90%] max-w-lg
-                        bg-gradient-to-br from-slate-900/98 to-indigo-950/98 
-                        backdrop-blur-xl rounded-2xl 
-                        shadow-2xl border border-indigo-500/20 
-                        text-white overflow-hidden
-                        animate-[slideUp_0.3s_ease-out]">
-
-          {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-4 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🤖</span>
-              <div>
-                <span className="font-bold text-lg">SynapSense Assistant</span>
-                <div className="text-xs text-white/70">AI-Powered Help</div>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                stopSpeaking();
-                setShowAnswerPanel(false);
-                setCurrentAnswer(null);
-              }}
-              className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 
-                         rounded-xl w-8 h-8 flex items-center justify-center transition"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="p-5 space-y-4">
-
-            {/* Question Asked */}
-            <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/30">
-              <div className="text-xs text-indigo-300 mb-1 flex items-center gap-1">
-                <span>🎙️</span> You asked:
-              </div>
-              <div className="text-white font-medium text-lg">"{currentAnswer.question}"</div>
-            </div>
-
-            {/* Short Answer (always visible) */}
-            <div className="bg-gradient-to-r from-indigo-500/15 to-purple-500/15 
-                            border border-indigo-500/20 rounded-xl p-4">
-              <div className="text-xs text-emerald-400 mb-2 flex items-center gap-1 font-medium">
-                <span>✨</span> Answer:
-              </div>
-              <div className="text-white text-base leading-relaxed">
-                {currentAnswer.shortAnswer}
-              </div>
-            </div>
-
-            {/* Full Answer (expandable) */}
-            {currentAnswer.fullAnswer && currentAnswer.topic !== "unknown" && (
-              <details className="group">
-                <summary className="cursor-pointer text-indigo-300 hover:text-indigo-200 
-                                    flex items-center gap-2 text-sm font-medium
-                                    py-2.5 px-4 bg-slate-800/50 rounded-xl hover:bg-slate-800 transition border border-slate-700/30">
-                  <span className="group-open:rotate-90 transition-transform">▶</span>
-                  📖 Read full explanation
-                </summary>
-                <div className="mt-3 bg-slate-800/50 rounded-xl p-4 text-slate-200 leading-relaxed text-sm border border-slate-700/30">
-                  {currentAnswer.fullAnswer}
-                </div>
-              </details>
-            )}
-
-            {/* Suggestion chips for unknown queries */}
-            {currentAnswer.topic === "unknown" && (
-              <div className="space-y-3 bg-amber-500/10 rounded-xl p-4 border border-amber-500/20">
-                <div className="text-xs text-amber-300 font-medium">💡 Suggested questions:</div>
-                <div className="flex flex-wrap gap-2">
-                  {["What is SynapSense?", "How accurate?", "What threats?", "Technology used"].map(q => (
-                    <button
-                      key={q}
-                      onClick={() => processVoiceInput(q)}
-                      className="bg-slate-700/70 hover:bg-slate-600 px-3 py-1.5 
-                                 rounded-lg text-xs transition border border-slate-600/50"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Timestamp & Topic */}
-            <div className="flex justify-between items-center text-xs text-slate-500 pt-2 border-t border-slate-700/30">
-              <span className="capitalize">🏷️ {currentAnswer.topic.replace(/_/g, ' ')}</span>
-              <span>🕐 {currentAnswer.timestamp}</span>
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          <div className="px-5 pb-5 flex gap-3">
-            <button
-              onClick={() => speak(currentAnswer.fullAnswer || currentAnswer.shortAnswer)}
-              className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 
-                         text-white py-2.5 px-4 rounded-xl font-medium transition-all 
-                         flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
-            >
-              🔊 Read Aloud
-            </button>
-            <button
-              onClick={() => {
-                stopSpeaking();
-                setShowAnswerPanel(false);
-                setCurrentAnswer(null);
-              }}
-              className="flex-1 bg-slate-700/70 hover:bg-slate-600 text-white py-2.5 px-4 
-                         rounded-xl font-medium transition border border-slate-600/50"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Custom Animation Styles */}
+      {/* Animation Styles */}
       <style>{`
         @keyframes slideUp {
           from {
             opacity: 0;
-            transform: translate(-50%, 20px);
+            transform: translateY(20px);
           }
           to {
             opacity: 1;
-            transform: translate(-50%, 0);
+            transform: translateY(0);
           }
+        }
+        .animate-slideUp {
+          animation: slideUp 0.3s ease-out forwards;
         }
       `}</style>
     </>

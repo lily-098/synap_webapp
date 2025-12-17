@@ -142,7 +142,7 @@ const Tracking = () => {
     const handleGenSingle = async () => { await fetchAndProcess(`${API_URL}/tracking/generate_single_person`); };
     const handleGenTwo = async () => { await fetchAndProcess(`${API_URL}/tracking/generate_test_data`); };
     const handleGenOverlap = async () => { await fetchAndProcess(`${API_URL}/tracking/generate_overlap`); };
-    const handleGenReal = async () => { await fetchAndProcess(`${API_URL}/tracking/generate_real_test_data`); };
+    const handleGenReal = async () => { await fetchAndProcess(`${API_URL}/tracking/generate_real_test_data`, true); };
 
     // New Generators
     const handleGenStopGo = async () => { await fetchAndProcess(`${API_URL}/tracking/generate_stop_go`); };
@@ -165,25 +165,49 @@ const Tracking = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(manualInputs)
             });
-            if (!res.ok) throw new Error(await res.text());
+            if (!res.ok) {
+                // Silently ignore 404 for unavailable endpoints
+                if (res.status === 404) {
+                    console.info('[Tracking] process_manual endpoint not available');
+                    return;
+                }
+                throw new Error(await res.text());
+            }
             const data = await res.json();
             setResults(prev => {
                 // If appending to existing, logic would be complex. For now, replace.
                 return data;
             });
-        } catch (err) { setError(err.message); }
+        } catch (err) {
+            // Only log non-fetch errors to avoid console spam
+            if (err.name !== 'TypeError') {
+                setError(err.message);
+            }
+        }
         finally { setLoading(false); }
     };
 
-    const fetchAndProcess = async (url) => {
+    const fetchAndProcess = async (url, silentOnMissing = false) => {
         setLoading(true);
         try {
             const res = await fetch(url);
-            if (!res.ok) throw new Error(await res.text());
+            if (!res.ok) {
+                // Silently ignore 404 for optional endpoints
+                if (res.status === 404 && silentOnMissing) {
+                    console.info(`[Tracking] Endpoint not available: ${url}`);
+                    return;
+                }
+                throw new Error(await res.text());
+            }
             const data = await res.json();
             setJsonInput(JSON.stringify(data, null, 2));
             handleProcess(data);
-        } catch (err) { setError(err.message); }
+        } catch (err) {
+            // Only show errors for non-network issues
+            if (err.name !== 'TypeError' || !silentOnMissing) {
+                setError(err.message);
+            }
+        }
         finally { setLoading(false); }
     };
 
@@ -449,8 +473,11 @@ const Tracking = () => {
                                         <label className="text-[10px] text-gray-500 block">{k}</label>
                                         <input
                                             type="number" step="0.1"
-                                            value={manualInputs[k]}
-                                            onChange={e => setManualInputs({ ...manualInputs, [k]: parseFloat(e.target.value) })}
+                                            value={isNaN(manualInputs[k]) ? '' : manualInputs[k]}
+                                            onChange={e => {
+                                                const val = parseFloat(e.target.value);
+                                                setManualInputs({ ...manualInputs, [k]: isNaN(val) ? 0 : val });
+                                            }}
                                             className="w-full bg-black border border-white/10 rounded px-2 py-1 text-xs"
                                         />
                                     </div>
