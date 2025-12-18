@@ -1,237 +1,104 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  checkAPIHealth,
+  startChallenge,
+  verifyChallenge,
+  verifyChallengeWithText,
+  recordAudio,
+  enrollUser,
+  createVoiceStream,
+  VoiceAuthSession
+} from "../utils/voiceAuthService";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 📚 SYNAPSENSE KNOWLEDGE BASE (Professional Q&A System)
+// 📚 SYNAPSENSE KNOWLEDGE BASE
 // ═══════════════════════════════════════════════════════════════════════════════
 const KNOWLEDGE_BASE = [
   {
     topic: "what_is_synapsense",
-    keywords: ["what", "synapsense", "what is", "explain", "tell me about", "describe", "introduction", "overview"],
+    keywords: ["what", "synapsense", "what is", "explain", "tell me about", "describe"],
     question: "What is SynapSense?",
-    answer: "SynapSense is a cutting-edge vibration-based detection and monitoring system that uses advanced seismic sensor technology to provide comprehensive security and surveillance capabilities. It analyzes ground vibrations with military-grade precision to detect, classify, and alert you to various types of movement and activity in real-time.",
-    shortAnswer: "SynapSense is an advanced vibration-based security system using seismic sensors for real-time threat detection.",
+    answer: "SynapSense is a cutting-edge vibration-based detection and monitoring system that uses advanced seismic sensor technology to provide comprehensive security and surveillance capabilities.",
+    shortAnswer: "SynapSense is an advanced vibration-based security system using seismic sensors.",
     category: "overview"
   },
   {
     topic: "how_it_works",
-    keywords: ["how", "work", "works", "working", "function", "functions", "operate", "operation", "process", "mechanism"],
+    keywords: ["how", "work", "works", "working", "function", "operate"],
     question: "How does SynapSense work?",
-    answer: "SynapSense works by using high-sensitivity geophone sensors that detect micro-vibrations in the ground. The system processes thousands of data points per second using Fast Fourier Transform (FFT) analysis and machine learning algorithms. It distinguishes between harmless environmental noise and genuine security concerns, providing real-time alerts within milliseconds.",
-    shortAnswer: "It uses seismic sensors and FFT analysis with machine learning to detect and classify vibrations in real-time.",
+    answer: "SynapSense uses high-sensitivity geophone sensors that detect micro-vibrations. The system processes data using FFT analysis and machine learning algorithms to distinguish threats from noise.",
+    shortAnswer: "Uses seismic sensors and ML to detect and classify vibrations in real-time.",
     category: "technology"
   },
   {
     topic: "benefits",
-    keywords: ["benefit", "benefits", "advantage", "advantages", "why use", "useful", "help", "value", "worth", "important"],
-    question: "What are the benefits of using SynapSense?",
-    answer: "SynapSense offers several key benefits: 1) 24/7 automated surveillance without human fatigue, 2) Detection of threats before visual contact is possible, 3) Works in complete darkness and adverse weather conditions, 4) Invisible to intruders - cannot be seen or disabled, 5) Low false alarm rates thanks to AI-powered classification, 6) Seamless integration with existing security systems, 7) Remote monitoring capability from anywhere in the world.",
-    shortAnswer: "24/7 invisible surveillance that works in any condition with minimal false alarms.",
+    keywords: ["benefit", "benefits", "advantage", "why use", "useful"],
+    question: "What are the benefits?",
+    answer: "Key benefits: 24/7 automated surveillance, works in darkness and bad weather, invisible to intruders, low false alarm rates with AI classification, and remote monitoring capability.",
+    shortAnswer: "24/7 invisible surveillance in any condition with minimal false alarms.",
     category: "overview"
   },
   {
     topic: "accuracy",
-    keywords: ["accuracy", "accurate", "precision", "reliable", "reliability", "false alarm", "false positive", "detection rate", "percentage", "how accurate"],
+    keywords: ["accuracy", "accurate", "precision", "reliable", "detection rate"],
     question: "How accurate is SynapSense?",
-    answer: "SynapSense maintains a detection accuracy of 98.7% under normal operating conditions. The system uses multiple validation techniques including pattern recognition, frequency analysis, and amplitude threshold detection. Continuous machine learning improvements and regular calibration ensure consistent high accuracy with minimal false alarms.",
-    shortAnswer: "SynapSense has 98.7% detection accuracy with minimal false alarms using ML-based validation.",
+    answer: "SynapSense maintains 98.7% detection accuracy using pattern recognition, frequency analysis, and continuous ML improvements.",
+    shortAnswer: "98.7% detection accuracy with ML-based validation.",
     category: "technology"
   },
   {
-    topic: "threats_detection",
-    keywords: ["threat", "threats", "detect", "detection", "intruder", "intrusion", "security", "danger", "dangerous", "alert", "what can", "types", "classify"],
-    question: "What types of threats can SynapSense detect?",
-    answer: "SynapSense can detect and classify multiple types of vibration sources including human footsteps, animal movements, vehicle activity, machinery vibrations, and environmental noise. It distinguishes between authorized and unauthorized movements, identifies patterns consistent with security threats, and filters out false positives from natural phenomena like wind or rain.",
-    shortAnswer: "It detects human footsteps, vehicles, animals, and machinery while filtering environmental noise.",
-    category: "features"
-  },
-  {
-    topic: "real_time",
-    keywords: ["real time", "realtime", "live", "instant", "immediate", "fast", "speed", "quick", "millisecond", "response time", "latency"],
-    question: "How fast does SynapSense respond?",
-    answer: "SynapSense provides millisecond-level detection and instant notifications for rapid response to potential security events. The system processes vibration data continuously and can classify threats within milliseconds of detection, enabling immediate alerts to security personnel.",
-    shortAnswer: "Millisecond-level detection with instant real-time alerts for rapid security response.",
-    category: "technology"
-  },
-  {
-    topic: "technology",
-    keywords: ["technology", "tech", "technical", "sensor", "sensors", "fft", "fourier", "algorithm", "machine learning", "ml", "ai", "neural", "signal processing"],
-    question: "What technology powers SynapSense?",
-    answer: "SynapSense uses multiple technologies: High-sensitivity geophone sensors for vibration detection, FFT (Fast Fourier Transform) for frequency analysis, advanced digital signal processing for noise filtering, and neural network models trained on millions of vibration signatures for accurate classification. The system continuously learns and adapts to environmental changes.",
-    shortAnswer: "Uses geophone sensors, FFT analysis, signal processing, and neural networks for detection.",
-    category: "technology"
-  },
-  {
-    topic: "use_cases",
-    keywords: ["use case", "application", "who uses", "where", "industry", "sector", "military", "defense", "commercial", "residential", "infrastructure", "suitable"],
-    question: "Who uses SynapSense?",
-    answer: "SynapSense is suitable for: Military & Defense (perimeter security for bases), Critical Infrastructure (power plants, water facilities, data centers), Commercial Properties (warehouses, manufacturing facilities, corporate campuses), and Residential Security (high-value properties and gated communities). It's trusted by security professionals worldwide.",
-    shortAnswer: "Used in military, critical infrastructure, commercial properties, and high-value residential security.",
-    category: "overview"
-  },
-  {
-    topic: "weather",
-    keywords: ["weather", "outdoor", "rain", "snow", "temperature", "climate", "environment", "ip67", "waterproof", "resistant", "durable"],
-    question: "Does SynapSense work in all weather conditions?",
-    answer: "All SynapSense sensors are designed with IP67 or higher ratings, making them fully weather-resistant and suitable for outdoor deployment. They can operate in temperatures from -40°C to +85°C and are protected against dust, rain, snow, and extreme humidity. Temperature compensation algorithms maintain accuracy across varying conditions.",
-    shortAnswer: "IP67 rated sensors work in all weather, from -40°C to +85°C, fully waterproof and dustproof.",
-    category: "features"
-  },
-  {
-    topic: "zones",
-    keywords: ["zone", "zones", "area", "areas", "multiple", "multi", "simultaneous", "coverage", "monitor", "monitoring"],
-    question: "How many zones can SynapSense monitor?",
-    answer: "SynapSense supports multi-zone monitoring with independent sensor arrays for each zone. The system can handle up to 50 zones simultaneously with individual configuration settings, alert rules, and sensitivity levels for each area. A centralized dashboard provides a unified view of all zones.",
-    shortAnswer: "Supports up to 50 independent zones with individual settings and centralized management.",
-    category: "features"
-  },
-  {
-    topic: "customization",
-    keywords: ["custom", "customize", "setting", "settings", "configure", "configuration", "threshold", "sensitivity", "personalize", "adjust", "notification"],
-    question: "Can I customize SynapSense settings?",
-    answer: "SynapSense offers comprehensive customization options. Users can set custom sensitivity levels for different zones, configure alert thresholds based on amplitude or frequency characteristics, schedule monitoring periods, and choose notification methods including in-app alerts, email notifications, and SMS messages.",
-    shortAnswer: "Fully customizable sensitivity, thresholds, schedules, and notification preferences per zone.",
-    category: "features"
-  },
-  {
-    topic: "data_storage",
-    keywords: ["data", "storage", "history", "historical", "store", "stored", "backup", "cloud", "retention", "export", "report"],
-    question: "How is data stored in SynapSense?",
-    answer: "The system stores all vibration data with full waveform retention for 30 days and summary statistics for up to 12 months. Users can access historical graphs, replay past events, generate reports, and export data for external analysis. Secure cloud backup ensures data integrity and availability.",
-    shortAnswer: "30 days full waveform storage, 12 months statistics, with cloud backup and export options.",
-    category: "features"
-  },
-  {
-    topic: "maintenance",
-    keywords: ["maintenance", "maintain", "calibrate", "calibration", "update", "service", "battery", "upkeep", "care"],
-    question: "What maintenance does SynapSense require?",
-    answer: "SynapSense requires minimal maintenance. Sensors should be calibrated every 6 months for accuracy. The system performs automated daily health checks and alerts if issues are detected. Software updates are automatic, and wireless sensor batteries typically last 2-3 years.",
-    shortAnswer: "Minimal maintenance: 6-month calibration cycle, auto health checks, 2-3 year battery life.",
-    category: "features"
-  },
-  {
-    topic: "false_alarms",
-    keywords: ["false alarm", "false positive", "reduce", "minimize", "filter", "noise", "unwanted", "mistake", "error"],
-    question: "How does SynapSense reduce false alarms?",
-    answer: "SynapSense employs multiple layers of false alarm reduction including adaptive threshold adjustment, pattern verification, temporal correlation analysis, and machine learning classification. Environmental conditions are continuously monitored and factored into detection algorithms. Users can also define exclusion zones and time-based filtering.",
-    shortAnswer: "Multi-layer false alarm reduction using adaptive thresholds, ML classification, and pattern analysis.",
-    category: "technology"
-  },
-  {
-    topic: "purpose_mission",
-    keywords: ["purpose", "mission", "goal", "objective", "why", "vision", "aim"],
-    question: "What is SynapSense's mission?",
-    answer: "At SynapSense, our mission is to provide the most advanced, reliable, and intelligent vibration detection technology to protect what matters most. We believe security should be proactive, not reactive. By detecting threats before they materialize and providing actionable intelligence in real-time, we empower clients to maintain safe, secure environments.",
-    shortAnswer: "To provide proactive, intelligent security that detects threats before they materialize.",
-    category: "overview"
-  },
-  {
-    topic: "contact_support",
-    keywords: ["contact", "support", "help", "assistance", "reach", "phone", "email", "team", "customer service"],
-    question: "How can I get support?",
-    answer: "Our support team is available 24/7 to help you with any questions or concerns about SynapSense. You can reach us through the Contact page in the app, email us at support@synapsense.com, or call our helpline. We're committed to ensuring you get the most out of our vibration detection system.",
-    shortAnswer: "24/7 support available via the Contact page, email, or helpline.",
-    category: "support"
-  },
-  {
-    topic: "dashboard",
-    keywords: ["dashboard", "interface", "ui", "display", "screen", "view", "home", "main"],
-    question: "What can I see on the Dashboard?",
-    answer: "The SynapSense Dashboard provides a real-time overview of your security system. It shows live detection status, today's events summary, threat classification (safe vs danger), detection accuracy, busiest hours, alarm counts, and detailed analytics graphs. You can quickly navigate to notifications, vibrations, and other sections.",
-    shortAnswer: "Real-time dashboard showing live status, events, analytics, and quick navigation.",
-    category: "navigation"
-  },
-  {
-    topic: "vibrations_page",
-    keywords: ["vibration page", "live vibration", "signal", "wave", "waveform", "graph", "visualization", "live signal"],
-    question: "What is the Vibrations page?",
-    answer: "The Vibrations page shows real-time signal visualization with live waveform displays. You can see the actual vibration patterns being detected by sensors, analyze frequency components, and monitor signal strength. It connects to sensors via WebSocket for live data streaming.",
-    shortAnswer: "Real-time waveform visualization of live sensor signals with frequency analysis.",
-    category: "navigation"
-  },
-  {
-    topic: "notifications",
-    keywords: ["notification", "notifications", "alert", "alerts", "warning", "event", "events", "history", "log"],
-    question: "How do notifications work?",
-    answer: "The Notifications page displays all security events and alerts. You can view event history, see threat classifications, check timestamps, and review details of each detection. Events are categorized by type (known/unknown, safe/danger) with filtering options.",
-    shortAnswer: "View all security alerts and events with classification, history, and filtering options.",
-    category: "navigation"
-  },
-  {
-    topic: "profile_settings",
-    keywords: ["profile", "account", "user", "personal", "my info", "my account"],
-    question: "Where can I manage my profile?",
-    answer: "The Profile page lets you manage your account information, view your activity history, and customize your personal preferences. You can update your details and see your interaction history with the system.",
-    shortAnswer: "Manage your account, view activity history, and customize personal preferences.",
-    category: "navigation"
-  },
-  {
-    topic: "esp32_hardware",
-    keywords: ["esp32", "hardware", "device", "microcontroller", "iot", "sensor device", "equipment", "physical"],
-    question: "What hardware does SynapSense use?",
-    answer: "SynapSense uses ESP32 microcontrollers connected to seismic sensors. The hardware communicates via WebSocket protocol at 192.168.4.1:81. The system processes sensor data locally and sends classified events to the web dashboard in real-time.",
-    shortAnswer: "ESP32 microcontrollers with seismic sensors, communicating via WebSocket.",
-    category: "technology"
+    topic: "voice_auth",
+    keywords: ["voice", "authentication", "voice auth", "verify", "enroll", "biometric"],
+    question: "About voice authentication",
+    answer: "Voice authentication uses AI to verify your identity. First enroll your voice by saying 3 sample phrases, then verify by speaking a challenge phrase. This prevents replay attacks.",
+    shortAnswer: "AI voice auth with enrollment and challenge-response verification.",
+    category: "security"
   },
   {
     topic: "greeting",
-    keywords: ["hello", "hi", "hey", "greetings", "good morning", "good afternoon", "good evening", "howdy"],
+    keywords: ["hello", "hi", "hey", "greetings", "good morning"],
     question: "Hello!",
-    answer: "Hello! I'm the SynapSense Voice Assistant. I can help you navigate the app and answer questions about our vibration-based security system. Try asking me things like 'What is SynapSense?' or 'How accurate is the detection?' or simply say 'Open dashboard'.",
-    shortAnswer: "Hello! I'm here to help you with SynapSense. Ask me anything!",
+    answer: "Hello! I'm SynapSense Voice Assistant with biometric authentication. Say 'enroll my voice' to register, or 'verify my voice' to authenticate. After verification, you can navigate the app with voice commands!",
+    shortAnswer: "Hello! Enroll your voice first, then verify to use navigation.",
     category: "greeting"
   },
   {
-    topic: "capabilities",
-    keywords: ["what can you do", "your features", "capabilities", "abilities", "commands", "help me", "assist"],
-    question: "What can you help me with?",
-    answer: "I can help you with: 1) Navigating the app - say 'Open dashboard', 'Show vibrations', 'Go to settings', etc. 2) Answering questions about SynapSense - ask about accuracy, technology, features, or any topic. 3) Explaining how the system works. Just ask naturally, I understand context!",
-    shortAnswer: "I navigate the app and answer questions about SynapSense. Ask anything!",
-    category: "support"
-  },
-  {
-    topic: "security_privacy",
-    keywords: ["security", "privacy", "safe", "secure", "encrypt", "encryption", "data protection", "private"],
-    question: "Is my data secure with SynapSense?",
-    answer: "SynapSense takes data security seriously. All data is encrypted in transit and at rest using industry-standard AES-256 encryption. User authentication is protected by multi-factor authentication, and access controls ensure only authorized personnel can view sensitive data. We comply with major security standards and regulations.",
-    shortAnswer: "AES-256 encryption, multi-factor authentication, and strict access controls protect your data.",
-    category: "features"
-  },
-  {
-    topic: "integration",
-    keywords: ["integrate", "integration", "connect", "api", "third party", "external", "compatible", "compatibility"],
-    question: "Can SynapSense integrate with other systems?",
-    answer: "SynapSense offers extensive integration capabilities through RESTful APIs and WebSocket connections. You can integrate with existing CCTV systems, access control systems, alarm panels, and SIEM platforms. Custom integrations are also possible through our developer documentation.",
-    shortAnswer: "RESTful APIs and WebSocket enable integration with CCTV, access control, and alarm systems.",
-    category: "features"
-  },
-  {
-    topic: "cost_pricing",
-    keywords: ["cost", "price", "pricing", "expensive", "affordable", "subscription", "license", "pay"],
-    question: "What does SynapSense cost?",
-    answer: "SynapSense offers flexible pricing plans to suit different needs. Contact our sales team for a customized quote based on your specific requirements, including the number of zones, sensor count, and desired features. We offer both subscription and perpetual licensing options.",
-    shortAnswer: "Flexible pricing available. Contact sales for a customized quote based on your needs.",
+    topic: "help",
+    keywords: ["help", "what can you do", "commands", "guide"],
+    question: "Help",
+    answer: "Available commands:\n🔐 'Enroll my voice' - Register your voiceprint (3 samples)\n🔑 'Verify my voice' - Authenticate with challenge phrase\n📍 'Open dashboard/vibrations/settings' - Navigate (after verification)\n❓ Ask any question about SynapSense",
+    shortAnswer: "Enroll → Verify → Navigate. Ask questions anytime!",
     category: "support"
   }
 ];
 
-// Suggested questions grouped by category
-const SUGGESTED_QUESTIONS = [
-  { text: "What is SynapSense?", category: "overview" },
-  { text: "How does it work?", category: "technology" },
-  { text: "What are the benefits?", category: "overview" },
-  { text: "How accurate is it?", category: "technology" },
-  { text: "What can it detect?", category: "features" },
-  { text: "Who uses SynapSense?", category: "overview" },
+const SUGGESTED_ACTIONS = [
+  { text: "Enroll my voice", category: "auth", icon: "🎤" },
+  { text: "Verify my voice", category: "auth", icon: "🔐" },
+  { text: "What is SynapSense?", category: "qa", icon: "❓" },
+  { text: "Help", category: "support", icon: "💡" },
 ];
 
-const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+// Enrollment phrases for user to speak
+const ENROLLMENT_PHRASES = [
+  "My voice is my password",
+  "Security through sound waves",
+  "SynapSense protects my home"
+];
 
 export default function VoiceAssistant() {
   const navigate = useNavigate();
   const recognitionRef = useRef(null);
   const answerPanelRef = useRef(null);
+  const lastTranscriptRef = useRef("");
+  const listeningTimeoutRef = useRef(null);
+  const hasProcessedRef = useRef(false);
+  const voiceStreamRef = useRef(null);
+  const authSessionRef = useRef(null);
+  const enrollmentSamplesRef = useRef([]); // Use ref to collect samples during async enrollment
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🎯 STATE MANAGEMENT
@@ -240,12 +107,63 @@ export default function VoiceAssistant() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [textInput, setTextInput] = useState("");
-  const [status, setStatus] = useState("idle"); // idle, listening, processing, speaking, error
+  const [status, setStatus] = useState("idle");
   const [conversationHistory, setConversationHistory] = useState([]);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
+  // Voice Auth State
+  const [voiceAuthStatus, setVoiceAuthStatus] = useState("unknown");
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [challengePhrase, setChallengePhrase] = useState("");
+  const [authScore, setAuthScore] = useState(0);
+
+  // Enrollment State
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [enrollmentStep, setEnrollmentStep] = useState(0);
+  const [enrollmentSamples, setEnrollmentSamples] = useState([]);
+  const [currentEnrollPhrase, setCurrentEnrollPhrase] = useState("");
+
+  // Get user ID from localStorage or use 'owner' as default (to match enrolled voiceprint)
+  const userId = localStorage.getItem("voice_user_id") || (() => {
+    // Use 'owner' as default since that's the enrolled user
+    const id = "owner";
+    localStorage.setItem("voice_user_id", id);
+    return id;
+  })();
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🛑 STOP SPEAKING
+  // 🔌 INITIALIZE ON MOUNT
+  // ═══════════════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const init = async () => {
+      // Check API health
+      const health = await checkAPIHealth();
+      if (health.ready) {
+        setVoiceAuthStatus("ready");
+        console.log("✅ Voice Auth API ready:", health);
+      } else {
+        setVoiceAuthStatus("error");
+        console.warn("⚠️ Voice Auth API not ready:", health);
+      }
+
+      // Check if already enrolled (stored in localStorage)
+      const enrolled = localStorage.getItem("voice_enrolled") === "true";
+      setIsEnrolled(enrolled);
+
+      // Initialize auth session
+      authSessionRef.current = new VoiceAuthSession(userId);
+    };
+
+    init();
+
+    return () => {
+      if (voiceStreamRef.current) voiceStreamRef.current.disconnect();
+    };
+  }, [userId]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔊 SPEAK
   // ═══════════════════════════════════════════════════════════════════════════
   const stopSpeaking = useCallback(() => {
     if (speechSynthesis.speaking) {
@@ -255,9 +173,6 @@ export default function VoiceAssistant() {
     }
   }, []);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🔊 SPEAK
-  // ═══════════════════════════════════════════════════════════════════════════
   const speak = useCallback((text) => {
     speechSynthesis.cancel();
     setStatus("speaking");
@@ -282,20 +197,262 @@ export default function VoiceAssistant() {
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🧠 INTENT MAP FOR NAVIGATION
+  // 🎤 VOICE ENROLLMENT FLOW
   // ═══════════════════════════════════════════════════════════════════════════
-  const INTENT_MAP = [
-    { pattern: /(home|dashboard|main)/, route: "/", response: "Opening home page" },
+  const startEnrollment = useCallback(async () => {
+    if (voiceAuthStatus !== "ready") {
+      addMessage("assistant", "⚠️ Voice service not available. Please try later.", true);
+      return;
+    }
+
+    setIsEnrolling(true);
+    setEnrollmentStep(0);
+    setEnrollmentSamples([]);
+    enrollmentSamplesRef.current = []; // Reset ref
+
+    addMessage("assistant", "🎤 Starting Voice Enrollment!\n\nI'll ask you to speak 3 phrases. Speak clearly after each prompt.", false, true);
+    speak("Starting voice enrollment. I'll ask you to speak 3 phrases.");
+
+    await new Promise(r => setTimeout(r, 2500));
+
+    // Collect all 3 samples sequentially
+    const samples = [];
+    for (let step = 0; step < ENROLLMENT_PHRASES.length; step++) {
+      const phrase = ENROLLMENT_PHRASES[step];
+      setCurrentEnrollPhrase(phrase);
+      setEnrollmentStep(step + 1);
+
+      addMessage("assistant", `📢 Sample ${step + 1}/3 - Please say:\n"${phrase}"`, false, true);
+      speak(`Sample ${step + 1}. Please say: ${phrase}`);
+
+      await new Promise(r => setTimeout(r, 3000));
+
+      // Record the sample
+      addMessage("assistant", "🎙️ Recording... Speak now!", false, true);
+      setStatus("listening");
+
+      try {
+        const audioBlob = await recordAudio(5000); // 5 seconds for better sample
+        samples.push(audioBlob);
+        enrollmentSamplesRef.current.push(audioBlob);
+        console.log(`📼 Sample ${step + 1} recorded:`, audioBlob.size, 'bytes');
+
+        addMessage("assistant", `✅ Sample ${step + 1} recorded!`, false, true);
+        await new Promise(r => setTimeout(r, 1000));
+      } catch (error) {
+        addMessage("assistant", `❌ Recording failed: ${error.message}`, true);
+        setIsEnrolling(false);
+        setStatus("idle");
+        return;
+      }
+    }
+
+    // All samples collected - now enroll
+    setCurrentEnrollPhrase("");
+    addMessage("assistant", "🔄 Processing your voice samples...", false, true);
+    setStatus("processing");
+
+    try {
+      console.log('📤 Sending enrollment with', samples.length, 'samples');
+      const result = await enrollUser(userId, samples, true);
+
+      if (result.success) {
+        setIsEnrolled(true);
+        localStorage.setItem("voice_enrolled", "true");
+
+        addMessage("assistant", `✅ Voice Enrollment Complete!\n\n${result.message}\n\nNow say "Verify my voice" to authenticate.`, false, true, true);
+        speak("Voice enrollment complete! You can now verify your voice to access navigation features.");
+      } else {
+        addMessage("assistant", `❌ Enrollment failed: ${result.message}`, true);
+      }
+    } catch (error) {
+      addMessage("assistant", `❌ Enrollment error: ${error.message}`, true);
+    }
+
+    setIsEnrolling(false);
+    setStatus("idle");
+  }, [voiceAuthStatus, speak, userId]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔐 VOICE VERIFICATION (Challenge-Response)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const performVoiceAuth = useCallback(async () => {
+    if (!isEnrolled) {
+      addMessage("assistant", "⚠️ You need to enroll your voice first!\n\nSay 'Enroll my voice' to register your voiceprint.", true);
+      speak("Please enroll your voice first by saying: Enroll my voice");
+      return;
+    }
+
+    if (voiceAuthStatus !== "ready") {
+      addMessage("assistant", "⚠️ Voice authentication service not available.", true);
+      return;
+    }
+
+    setStatus("authenticating");
+    addMessage("assistant", "🔐 Starting voice verification...", false, true);
+
+    try {
+      // Step 1: Start challenge
+      const challenge = await startChallenge(userId);
+
+      if (!challenge.success) {
+        throw new Error(challenge.message || "Failed to start challenge");
+      }
+
+      // Step 2: Show phrase
+      setChallengePhrase(challenge.phrase);
+      addMessage("assistant", `📢 Challenge Phrase:\n\n"${challenge.phrase}"\n\nSpeak this phrase clearly!`, false, true);
+      speak(`Please say: ${challenge.phrase}`);
+
+      await new Promise(r => setTimeout(r, 3000));
+
+      // Step 3: Record audio AND capture browser STT simultaneously
+      addMessage("assistant", "🎙️ Recording... Speak now!", false, true);
+      setStatus("listening");
+
+      // Start browser speech recognition
+      let spokenText = "";
+      let interimText = "";
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.continuous = true;
+        recognition.interimResults = true; // Enable real-time updates
+
+        const sttPromise = new Promise((resolve) => {
+          recognition.onresult = (event) => {
+            let finalTranscript = "";
+            let interimTranscript = "";
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const transcript = event.results[i][0].transcript;
+              if (event.results[i].isFinal) {
+                finalTranscript += transcript;
+              } else {
+                interimTranscript += transcript;
+              }
+            }
+
+            if (finalTranscript) {
+              spokenText = finalTranscript;
+              console.log("🎤 Final:", spokenText);
+            }
+
+            // Show what user is saying in real-time
+            interimText = interimTranscript || finalTranscript;
+            if (interimText) {
+              setCurrentTranscript(`🗣️ "${interimText}"`);
+            }
+          };
+          recognition.onerror = (e) => {
+            console.warn("Browser STT error:", e.error);
+            resolve("");
+          };
+          recognition.onend = () => {
+            resolve(spokenText);
+          };
+        });
+
+        recognition.start();
+
+        // Record audio at the same time
+        const audioBlob = await recordAudio(5000); // 5 seconds for better capture
+
+        // Wait for STT to finish (with timeout)
+        await Promise.race([
+          sttPromise,
+          new Promise(r => setTimeout(r, 6000))
+        ]);
+
+        try { recognition.stop(); } catch (e) { }
+        setCurrentTranscript(""); // Clear the live transcript
+
+        addMessage("assistant", `🔄 Verifying...\n\n🗣️ You said: "${spokenText || '(no speech detected)'}"`, false, true);
+        setStatus("processing");
+
+        // Step 4: Verify using browser STT
+        const result = await verifyChallengeWithText(challenge.sessionId, audioBlob, spokenText);
+
+        if (result.success && result.speakerMatch && result.phraseMatch) {
+          setIsVerified(true);
+          setAuthScore(result.speakerScore);
+          authSessionRef.current?.setAuthenticated(result.speakerScore);
+
+          addMessage("assistant", `✅ Voice Verified Successfully!\n\nConfidence: ${Math.round(result.speakerScore * 100)}%\n\nYou can now use navigation commands like:\n• "Open dashboard"\n• "Show vibrations"\n• "Go to settings"`, false, true, true);
+          speak("Voice verified! You can now navigate the app with voice commands.");
+
+        } else {
+          const reason = !result.speakerMatch ? `Voice mismatch (score: ${Math.round(result.speakerScore * 100)}%)` :
+            !result.phraseMatch ? `Phrase mismatch (heard: "${result.spokenText}")` :
+              result.message;
+
+          addMessage("assistant", `❌ Verification Failed\n\nReason: ${reason}\nTrials left: ${result.trialsRemaining}\n\nTry again by saying "Verify my voice"`, true);
+          speak("Verification failed. " + reason);
+        }
+      } else {
+        // Fallback: no browser STT, use backend Whisper
+        const audioBlob = await recordAudio(4000);
+        addMessage("assistant", "🔄 Verifying your voice...", false, true);
+        setStatus("processing");
+
+        const result = await verifyChallenge(challenge.sessionId, audioBlob);
+
+        if (result.success && result.speakerMatch && result.phraseMatch) {
+          setIsVerified(true);
+          setAuthScore(result.speakerScore);
+          authSessionRef.current?.setAuthenticated(result.speakerScore);
+          addMessage("assistant", `✅ Voice Verified!`, false, true, true);
+          speak("Voice verified!");
+        } else {
+          addMessage("assistant", `❌ Verification Failed: ${result.message}`, true);
+          speak("Verification failed.");
+        }
+      }
+
+    } catch (error) {
+      addMessage("assistant", `❌ Error: ${error.message}`, true);
+    }
+
+    setChallengePhrase("");
+    setStatus("idle");
+  }, [isEnrolled, voiceAuthStatus, userId, speak]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🧭 NAVIGATION COMMANDS (Requires Verification)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const NAVIGATION_COMMANDS = [
+    { pattern: /(home|dashboard|main)/, route: "/", response: "Opening dashboard" },
     { pattern: /(vibration|signal|wave)/, route: "/vibrations", response: "Showing live vibrations" },
     { pattern: /(notification|alert|intruder)/, route: "/notifications", response: "Opening notifications" },
-    { pattern: /(profile|account|my profile)/, route: "/profile", response: "Opening your profile" },
+    { pattern: /(profile|account)/, route: "/profile", response: "Opening your profile" },
     { pattern: /(setting|settings|preference)/, route: "/settings", response: "Opening settings" },
-    { pattern: /(faq|help|question)/, route: "/faqs", response: "Opening help section" },
+    { pattern: /(faq|help page|question)/, route: "/faqs", response: "Opening FAQs" },
     { pattern: /(about|information)/, route: "/about", response: "Opening about page" },
   ];
 
+  const handleNavigation = useCallback((text) => {
+    for (const cmd of NAVIGATION_COMMANDS) {
+      if (cmd.pattern.test(text)) {
+        navigate(cmd.route);
+        addMessage("assistant", `🧭 ${cmd.response}`, false, false, true);
+        speak(cmd.response);
+        return true;
+      }
+    }
+    return false;
+  }, [navigate, speak]);
+
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🔍 FIND BEST ANSWER FROM KNOWLEDGE BASE
+  // 💬 MESSAGE HELPER
+  // ═══════════════════════════════════════════════════════════════════════════
+  const addMessage = (type, text, isError = false, isSystem = false, isSuccess = false) => {
+    setConversationHistory(prev => [...prev, { type, text, isError, isSystem, isSuccess }]);
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔍 FIND ANSWER FROM KNOWLEDGE BASE
   // ═══════════════════════════════════════════════════════════════════════════
   const findAnswer = (query) => {
     const text = query.toLowerCase().trim();
@@ -306,7 +463,7 @@ export default function VoiceAssistant() {
       let score = 0;
       for (const keyword of entry.keywords) {
         if (text.includes(keyword)) {
-          score += keyword.split(" ").length; // Multi-word keywords get higher scores
+          score += keyword.split(" ").length;
         }
       }
       if (score > maxScore) {
@@ -319,102 +476,187 @@ export default function VoiceAssistant() {
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎯 PROCESS INPUT (Voice or Text)
+  // 🎯 PROCESS INPUT
   // ═══════════════════════════════════════════════════════════════════════════
   const processInput = useCallback((input) => {
     const text = input.toLowerCase().trim();
     setStatus("processing");
 
-    // Add user message to history
-    setConversationHistory(prev => [...prev, { type: "user", text: input }]);
+    // Add user message
+    addMessage("user", input);
 
-    // Check for navigation intents first
-    for (const intent of INTENT_MAP) {
-      if (intent.pattern.test(text)) {
-        navigate(intent.route);
-        const response = intent.response;
-        setConversationHistory(prev => [...prev, { type: "assistant", text: response }]);
-        speak(response);
+    // COMMAND: Enroll
+    if (text.includes("enroll")) {
+      startEnrollment();
+      return;
+    }
+
+    // COMMAND: Verify
+    if (text.includes("verify") || text.includes("authenticate")) {
+      performVoiceAuth();
+      return;
+    }
+
+    // COMMAND: Auth Status
+    if (text.includes("status") || text.includes("am i verified")) {
+      if (isVerified && authSessionRef.current?.isValid()) {
+        const mins = Math.round(authSessionRef.current.getRemainingTime() / 60000);
+        addMessage("assistant", `✅ Verified (${Math.round(authScore * 100)}%)\nSession: ${mins} minutes remaining`);
+      } else if (isEnrolled) {
+        addMessage("assistant", "🔒 Enrolled but not verified.\nSay 'Verify my voice' to authenticate.");
+      } else {
+        addMessage("assistant", "❌ Not enrolled.\nSay 'Enroll my voice' to start.");
+      }
+      setStatus("idle");
+      return;
+    }
+
+    // COMMAND: Logout/Reset
+    if (text.includes("logout") || text.includes("reset voice")) {
+      setIsVerified(false);
+      authSessionRef.current?.clear();
+      addMessage("assistant", "🔓 Voice session cleared. Say 'Verify my voice' to re-authenticate.");
+      speak("Voice session cleared.");
+      setStatus("idle");
+      return;
+    }
+
+    // NAVIGATION COMMANDS - Requires verification
+    const isNavCommand = NAVIGATION_COMMANDS.some(cmd => cmd.pattern.test(text));
+    if (isNavCommand) {
+      if (!isVerified || !authSessionRef.current?.isValid()) {
+        addMessage("assistant", "🔒 Voice verification required!\n\nNavigigation commands need authentication. Say 'Verify my voice' first.", true);
+        speak("Please verify your voice first to use navigation commands.");
+        setStatus("idle");
+        return;
+      }
+
+      if (handleNavigation(text)) {
+        setStatus("idle");
         return;
       }
     }
 
-    // Check knowledge base for answers
-    const match = findAnswer(text);
-    if (match) {
-      const response = match.answer;
-      setConversationHistory(prev => [...prev, { type: "assistant", text: response }]);
-      speak(match.shortAnswer);
+    // Q&A - Available without verification
+    const answer = findAnswer(text);
+    if (answer) {
+      addMessage("assistant", answer.answer);
+      speak(answer.shortAnswer);
+      setStatus("idle");
       return;
     }
 
-    // Fallback response
-    const fallback = "I'm not sure about that specific question. Try asking about what SynapSense is, how it works, its accuracy, or say 'open dashboard' to navigate the app.";
-    setConversationHistory(prev => [...prev, { type: "assistant", text: fallback }]);
+    // Fallback
+    const fallback = isEnrolled
+      ? "I didn't understand. Try 'verify my voice' or ask about SynapSense."
+      : "I didn't understand. Say 'enroll my voice' to start, or ask about SynapSense.";
+    addMessage("assistant", fallback);
     speak(fallback);
-  }, [navigate, speak]);
+    setStatus("idle");
+  }, [startEnrollment, performVoiceAuth, handleNavigation, isVerified, isEnrolled, authScore, speak]);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎙️ START LISTENING
+  // 🎙️ SPEECH RECOGNITION
   // ═══════════════════════════════════════════════════════════════════════════
   const startListening = useCallback(() => {
     if (!SpeechRecognition) {
-      const errorMsg = "Speech recognition not supported. Please use the text input.";
-      setConversationHistory(prev => [...prev, { type: "assistant", text: errorMsg }]);
+      addMessage("assistant", "Speech recognition not supported. Use Chrome or Edge.", true);
       return;
     }
 
-    if (recognitionRef.current) {
-      recognitionRef.current.abort();
+    if (isEnrolling) {
+      addMessage("assistant", "⚠️ Please complete enrollment first!", true);
+      return;
     }
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = true;
+    stopSpeaking();
+    lastTranscriptRef.current = "";
+    hasProcessedRef.current = false;
 
-    recognition.onstart = () => {
-      setIsListening(true);
-      setStatus("listening");
-      setCurrentTranscript("");
-    };
+    if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch (e) { }
+    }
 
-    recognition.onresult = (event) => {
-      const result = event.results[0];
-      const spokenText = result[0].transcript;
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.continuous = true;
+      recognition.interimResults = true;
 
-      if (result.isFinal) {
+      recognition.onstart = () => {
+        setIsListening(true);
+        setStatus("listening");
         setCurrentTranscript("");
-        processInput(spokenText);
-      } else {
-        setCurrentTranscript(spokenText);
-      }
-    };
 
-    recognition.onerror = (event) => {
-      setStatus("error");
-      setIsListening(false);
-
-      const errorMessages = {
-        "no-speech": "No speech detected. Please try again.",
-        "audio-capture": "Microphone not accessible.",
-        "not-allowed": "Microphone permission denied.",
-        "network": "Network error occurred.",
-        "aborted": "Recognition was aborted.",
+        listeningTimeoutRef.current = setTimeout(() => {
+          if (recognitionRef.current && !hasProcessedRef.current) {
+            if (lastTranscriptRef.current.trim()) {
+              hasProcessedRef.current = true;
+              processInput(lastTranscriptRef.current);
+            }
+            try { recognitionRef.current.stop(); } catch (e) { }
+          }
+        }, 8000);
       };
 
-      const errorMsg = errorMessages[event.error] || "Please try again.";
-      setConversationHistory(prev => [...prev, { type: "assistant", text: errorMsg }]);
-    };
+      recognition.onspeechend = () => {
+        setTimeout(() => {
+          if (recognitionRef.current && !hasProcessedRef.current) {
+            try { recognitionRef.current.stop(); } catch (e) { }
+          }
+        }, 500);
+      };
 
-    recognition.onend = () => {
+      recognition.onresult = (event) => {
+        const lastResult = event.results[event.results.length - 1];
+        const text = lastResult[0].transcript;
+
+        lastTranscriptRef.current = text;
+        setCurrentTranscript(text);
+
+        if (lastResult.isFinal && !hasProcessedRef.current) {
+          hasProcessedRef.current = true;
+          setCurrentTranscript("");
+          if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
+          try { recognition.stop(); } catch (e) { }
+          processInput(text);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
+        if (event.error === "aborted") {
+          if (lastTranscriptRef.current.trim() && !hasProcessedRef.current) {
+            hasProcessedRef.current = true;
+            processInput(lastTranscriptRef.current);
+          }
+        } else if (event.error !== "no-speech") {
+          addMessage("assistant", `Mic error: ${event.error}`, true);
+        }
+        setIsListening(false);
+        setStatus("idle");
+      };
+
+      recognition.onend = () => {
+        if (listeningTimeoutRef.current) clearTimeout(listeningTimeoutRef.current);
+        if (lastTranscriptRef.current.trim() && !hasProcessedRef.current) {
+          hasProcessedRef.current = true;
+          processInput(lastTranscriptRef.current);
+        }
+        setIsListening(false);
+        setCurrentTranscript("");
+        setStatus(prev => prev === "listening" ? "idle" : prev);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (error) {
+      addMessage("assistant", `Error: ${error.message}`, true);
+      setStatus("error");
       setIsListening(false);
-      if (status === "listening") setStatus("idle");
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-  }, [processInput, status]);
+    }
+  }, [processInput, stopSpeaking, isEnrolling]);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 📝 HANDLE TEXT SUBMIT
@@ -427,69 +669,69 @@ export default function VoiceAssistant() {
   };
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎯 HANDLE SUGGESTED QUESTION CLICK
-  // ═══════════════════════════════════════════════════════════════════════════
-  const handleSuggestedQuestion = (question) => {
-    processInput(question);
-  };
-
-  // ═══════════════════════════════════════════════════════════════════════════
   // 📋 TOGGLE PANEL
   // ═══════════════════════════════════════════════════════════════════════════
   const togglePanel = () => {
     stopSpeaking();
     setIsPanelOpen(!isPanelOpen);
     if (!isPanelOpen && conversationHistory.length === 0) {
-      // Welcome message when opening
-      const welcome = "Hello! I'm your SynapSense assistant. Ask me anything about the system or navigate the app.";
-      setConversationHistory([{ type: "assistant", text: welcome }]);
+      const welcome = isEnrolled
+        ? isVerified
+          ? "Welcome back! ✅ Voice verified. You can navigate with voice commands."
+          : "Welcome! 🔐 Say 'Verify my voice' to authenticate and unlock navigation."
+        : "Hello! 🎤 Say 'Enroll my voice' to register your voiceprint first.";
+      addMessage("assistant", welcome);
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🧹 SCROLL TO BOTTOM ON NEW MESSAGES
-  // ═══════════════════════════════════════════════════════════════════════════
+  // Scroll to bottom
   useEffect(() => {
     if (answerPanelRef.current) {
       answerPanelRef.current.scrollTop = answerPanelRef.current.scrollHeight;
     }
   }, [conversationHistory]);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🧹 CLEANUP
-  // ═══════════════════════════════════════════════════════════════════════════
+  // Cleanup
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      if (recognitionRef.current) recognitionRef.current.abort();
+      if (voiceStreamRef.current) voiceStreamRef.current.disconnect();
       speechSynthesis.cancel();
     };
   }, []);
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 🎨 STATUS INDICATORS
+  // 🎨 STATUS HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
   const getStatusStyle = () => {
+    if (isVerified) return "bg-green-600 shadow-green-500/50";
+    if (isEnrolled) return "bg-yellow-600 shadow-yellow-500/50";
     switch (status) {
-      case "listening":
-        return "bg-green-500 animate-pulse shadow-green-500/50";
-      case "processing":
-        return "bg-yellow-500 shadow-yellow-500/50";
-      case "speaking":
-        return "bg-blue-500 shadow-blue-500/50";
-      case "error":
-        return "bg-red-500 shadow-red-500/50";
-      default:
-        return "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/50";
+      case "listening": return "bg-green-500 animate-pulse shadow-green-500/50";
+      case "processing": return "bg-yellow-500 shadow-yellow-500/50";
+      case "speaking": return "bg-blue-500 shadow-blue-500/50";
+      case "authenticating": return "bg-purple-500 animate-pulse shadow-purple-500/50";
+      default: return "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/50";
     }
   };
 
+  const getStatusText = () => {
+    if (isEnrolling) return `Enrolling... (${enrollmentStep}/3)`;
+    switch (status) {
+      case "listening": return "🎧 Listening...";
+      case "processing": return "⚙️ Processing...";
+      case "speaking": return "🔊 Speaking...";
+      case "authenticating": return "🔐 Authenticating...";
+      default: return isVerified ? "✅ Verified" : isEnrolled ? "🔒 Enrolled" : "❌ Not Enrolled";
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎨 RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <>
-      {/* ═══════════════════════════════════════════════════════════════════════
-          🔘 MAIN FLOATING BUTTON
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* Floating Button */}
       <button
         onClick={togglePanel}
         className={`fixed bottom-6 right-6 z-[9999] w-14 h-14 rounded-full 
@@ -497,151 +739,135 @@ export default function VoiceAssistant() {
                    shadow-lg transition-all duration-300 transform
                    ${isPanelOpen ? "rotate-45 bg-red-500 hover:bg-red-600" : getStatusStyle()}
                    hover:scale-110`}
-        title={isPanelOpen ? "Close Assistant" : "Open Voice Assistant"}
+        title={isPanelOpen ? "Close" : "Voice Assistant"}
       >
-        {isPanelOpen ? "✕" : "🎙️"}
+        {isPanelOpen ? "✕" : isVerified ? "🔓" : isEnrolled ? "🔐" : "🎙️"}
       </button>
 
-      {/* ═══════════════════════════════════════════════════════════════════════
-          📊 PROFESSIONAL ASSISTANT PANEL
-      ═══════════════════════════════════════════════════════════════════════ */}
+      {/* Panel */}
       {isPanelOpen && (
-        <div className="fixed bottom-24 right-6 z-[9998] w-96 max-h-[600px]
+        <div className="fixed bottom-24 right-6 z-[9998] w-96 h-[500px]
                         bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900
                         rounded-2xl shadow-2xl border border-slate-700/50
-                        overflow-hidden flex flex-col
-                        animate-slideUp backdrop-blur-xl">
+                        flex flex-col backdrop-blur-xl"
+          style={{ animation: 'slideUp 0.3s ease-out' }}>
 
           {/* Header */}
-          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 
-                          px-5 py-4 flex items-center justify-between">
+          <div className={`px-5 py-4 flex items-center justify-between flex-shrink-0 ${isVerified ? "bg-gradient-to-r from-green-600 to-emerald-600" :
+            isEnrolled ? "bg-gradient-to-r from-yellow-600 to-orange-600" :
+              "bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700"
+            } rounded-t-2xl`}>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur">
-                <span className="text-xl">🧠</span>
+                <span className="text-xl">{isVerified ? "🔓" : isEnrolled ? "🔐" : "🎤"}</span>
               </div>
               <div>
-                <h3 className="text-white font-semibold text-lg">SynapSense Assistant</h3>
-                <p className="text-indigo-200 text-xs">Ask anything • Navigate anywhere</p>
+                <h3 className="text-white font-semibold text-lg">Voice Assistant</h3>
+                <p className="text-white/80 text-xs">{getStatusText()}</p>
               </div>
             </div>
-            <button
-              onClick={() => { stopSpeaking(); setIsPanelOpen(false); }}
-              className="text-white/70 hover:text-white transition-colors p-1"
-            >
+            <button onClick={() => { stopSpeaking(); setIsPanelOpen(false); }} className="text-white/70 hover:text-white p-1">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          {/* Status Bar */}
-          <div className="px-5 py-2 bg-slate-800/50 border-b border-slate-700/50 flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${status === "listening" ? "bg-green-500 animate-pulse" :
-                status === "speaking" ? "bg-blue-500 animate-pulse" :
-                  status === "processing" ? "bg-yellow-500" :
-                    "bg-slate-500"
-              }`}></span>
-            <span className="text-slate-400 text-xs font-medium">
-              {status === "listening" ? "Listening..." :
-                status === "speaking" ? "Speaking..." :
-                  status === "processing" ? "Processing..." :
-                    "Ready to help"}
-            </span>
-            {isSpeaking && (
-              <button
-                onClick={stopSpeaking}
-                className="ml-auto text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
-              >
-                <span>■</span> Stop
-              </button>
-            )}
-          </div>
+          {/* Enrollment Phrase Display */}
+          {currentEnrollPhrase && (
+            <div className="px-4 py-3 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 border-b border-indigo-500/30 flex-shrink-0">
+              <p className="text-xs text-indigo-300 mb-1">🎤 Say this phrase ({enrollmentStep}/3):</p>
+              <p className="text-lg font-bold text-white text-center">"{currentEnrollPhrase}"</p>
+            </div>
+          )}
 
-          {/* Conversation Area */}
+          {/* Challenge Phrase Display */}
+          {challengePhrase && (
+            <div className="px-4 py-3 bg-gradient-to-r from-purple-600/30 to-pink-600/30 border-b border-purple-500/30 flex-shrink-0">
+              <p className="text-xs text-purple-300 mb-1">🔐 Challenge phrase:</p>
+              <p className="text-lg font-bold text-white text-center">"{challengePhrase}"</p>
+            </div>
+          )}
+
+          {/* LIVE SPEECH DISPLAY - Shows what user is saying in real-time */}
+          {currentTranscript && status === "listening" && (
+            <div className="px-4 py-3 bg-gradient-to-r from-green-600/40 to-emerald-600/40 border-b border-green-500/30 flex-shrink-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-ping"></span>
+                <p className="text-xs text-green-300">🎙️ You're saying:</p>
+              </div>
+              <p className="text-lg font-bold text-white text-center">{currentTranscript}</p>
+            </div>
+          )}
+
+          {/* Conversation - Scrollable Area */}
           <div
             ref={answerPanelRef}
-            className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[200px] max-h-[300px]"
+            className="flex-1 overflow-y-auto p-4 space-y-3 voice-chat-scroll"
           >
-            {conversationHistory.map((msg, index) => (
-              <div
-                key={index}
-                className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.type === "user"
-                    ? "bg-indigo-600 text-white rounded-br-sm"
-                    : "bg-slate-700/80 text-slate-200 rounded-bl-sm"
+            {conversationHistory.map((msg, i) => (
+              <div key={i} className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.type === "user" ? "bg-indigo-600 text-white rounded-br-sm" :
+                  msg.isError ? "bg-red-600/30 text-red-200 border border-red-500/30 rounded-bl-sm" :
+                    msg.isSuccess ? "bg-green-600/30 text-green-200 border border-green-500/30 rounded-bl-sm" :
+                      msg.isSystem ? "bg-slate-600/50 text-slate-300 rounded-bl-sm italic" :
+                        "bg-slate-700/80 text-slate-200 rounded-bl-sm"
                   }`}>
-                  <p className="text-sm leading-relaxed">{msg.text}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{msg.text}</p>
                 </div>
               </div>
             ))}
-
-            {/* Interim transcript */}
-            {currentTranscript && (
-              <div className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-indigo-600/50 text-white/70 rounded-br-sm">
-                  <p className="text-sm italic">{currentTranscript}...</p>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* Suggested Questions */}
+          {/* Suggested Actions */}
           {conversationHistory.length <= 1 && (
             <div className="px-4 pb-3">
-              <p className="text-xs text-slate-500 mb-2 font-medium">Suggested questions:</p>
               <div className="flex flex-wrap gap-2">
-                {SUGGESTED_QUESTIONS.map((q, index) => (
+                {SUGGESTED_ACTIONS.map((a, i) => (
                   <button
-                    key={index}
-                    onClick={() => handleSuggestedQuestion(q.text)}
-                    className="text-xs px-3 py-1.5 rounded-full 
-                               bg-slate-700/50 text-indigo-300 
-                               hover:bg-indigo-600/30 hover:text-indigo-200
-                               border border-slate-600/50 hover:border-indigo-500/50
-                               transition-all duration-200"
+                    key={i}
+                    onClick={() => processInput(a.text)}
+                    disabled={isEnrolling}
+                    className={`text-xs px-3 py-1.5 rounded-full flex items-center gap-1
+                               ${a.category === "auth" ? "bg-purple-700/50 text-purple-300 border-purple-500/50" :
+                        "bg-slate-700/50 text-indigo-300 border-slate-600/50"}
+                               border hover:opacity-80 transition-all disabled:opacity-50`}
                   >
-                    {q.text}
+                    <span>{a.icon}</span> {a.text}
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Input Area */}
+          {/* Input */}
           <div className="p-4 bg-slate-800/50 border-t border-slate-700/50">
             <form onSubmit={handleTextSubmit} className="flex gap-2">
               <input
                 type="text"
                 value={textInput}
                 onChange={(e) => setTextInput(e.target.value)}
-                placeholder="Type your question..."
+                placeholder={isEnrolling ? "Enrollment in progress..." : "Type or speak..."}
+                disabled={isEnrolling}
                 className="flex-1 bg-slate-700/50 border border-slate-600/50 rounded-xl 
                            px-4 py-3 text-white placeholder-slate-400 text-sm
-                           focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30
-                           transition-all"
+                           focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={startListening}
-                disabled={isListening}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center
-                           transition-all duration-300 text-lg
-                           ${isListening
-                    ? "bg-green-500 animate-pulse text-white"
-                    : "bg-indigo-600 hover:bg-indigo-500 text-white"}`}
-                title={isListening ? "Listening..." : "Click to speak"}
+                disabled={isListening || isEnrolling}
+                className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg
+                           ${isListening ? "bg-green-500 animate-pulse" : "bg-indigo-600 hover:bg-indigo-500"}
+                           text-white disabled:opacity-50`}
               >
                 {isListening ? "🎧" : "🎙️"}
               </button>
               <button
                 type="submit"
-                disabled={!textInput.trim()}
-                className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600
-                           hover:from-indigo-500 hover:to-purple-500
-                           text-white flex items-center justify-center
-                           disabled:opacity-50 disabled:cursor-not-allowed
-                           transition-all duration-300"
+                disabled={!textInput.trim() || isEnrolling}
+                className="w-12 h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 
+                           text-white flex items-center justify-center disabled:opacity-50"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -653,27 +879,19 @@ export default function VoiceAssistant() {
           {/* Footer */}
           <div className="px-4 py-2 bg-slate-900/50 border-t border-slate-700/30">
             <p className="text-center text-slate-500 text-xs">
-              Powered by <span className="text-indigo-400 font-medium">SynapSense AI</span>
+              {voiceAuthStatus === "ready" ? "🟢" : "🔴"} Voice Auth •
+              {isVerified ? " ✅ Verified" : isEnrolled ? " 🔐 Enrolled" : " ❌ Not Enrolled"}
             </p>
           </div>
         </div>
       )}
 
-      {/* Animation Styles */}
       <style>{`
         @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-        .animate-slideUp {
-          animation: slideUp 0.3s ease-out forwards;
-        }
+        .animate-slideUp { animation: slideUp 0.3s ease-out forwards; }
       `}</style>
     </>
   );

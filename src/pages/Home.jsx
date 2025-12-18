@@ -130,30 +130,30 @@ function Home({ darkMode }) {
             Live Detection Dashboard
           </h2>
 
-         {/* KPI Stats */}
-<div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* KPI Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
 
-  <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl text-center">
-    <p className="text-xs font-bold text-gray-600 dark:text-gray-300">Total</p>
-    <h3 className="text-2xl font-bold">{todayEvents.length}</h3>
-  </div>
+            <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded-xl text-center">
+              <p className="text-xs font-bold text-gray-600 dark:text-gray-300">Total</p>
+              <h3 className="text-2xl font-bold">{todayEvents.length}</h3>
+            </div>
 
-  <div className="bg-green-100 dark:bg-green-600 p-4 rounded-xl text-center">
-    <p className="text-xs font-bold text-gray-800 dark:text-gray-100">Safe %</p>
-    <h3 className="text-3xl font-bold">{safePercentage}%</h3>
-  </div>
+            <div className="bg-green-100 dark:bg-green-600 p-4 rounded-xl text-center">
+              <p className="text-xs font-bold text-gray-800 dark:text-gray-100">Safe %</p>
+              <h3 className="text-3xl font-bold">{safePercentage}%</h3>
+            </div>
 
-  <div className="bg-pink-100 dark:bg-pink-300 p-4 rounded-xl text-center">
-    <p className="text-xs font-bold text-gray-800 dark:text-gray-900">Danger</p>
-    <h3 className="text-3xl font-bold">{danger}</h3>
-  </div>
+            <div className="bg-pink-100 dark:bg-pink-300 p-4 rounded-xl text-center">
+              <p className="text-xs font-bold text-gray-800 dark:text-gray-900">Danger</p>
+              <h3 className="text-3xl font-bold">{danger}</h3>
+            </div>
 
-  <div className="bg-blue-100 dark:bg-blue-600 p-4 rounded-xl text-center">
-    <p className="text-xs font-bold text-gray-800 dark:text-gray-100">Accuracy</p>
-    <h3 className="text-2xl font-bold">{avgAccuracy}%</h3>
-  </div>
+            <div className="bg-blue-100 dark:bg-blue-600 p-4 rounded-xl text-center">
+              <p className="text-xs font-bold text-gray-800 dark:text-gray-100">Accuracy</p>
+              <h3 className="text-2xl font-bold">{avgAccuracy}%</h3>
+            </div>
 
-</div>
+          </div>
 
 
           {/* MAIN GRAPH */}
