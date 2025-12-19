@@ -33,7 +33,7 @@ const addOwner = (name) => {
   if (!owners.includes(name)) { owners.push(name); localStorage.setItem("synap_owners", JSON.stringify(owners)); }
 };
 const removeOwner = (name) => {
-  if (name === "owner") return false;
+  // if (name === "owner") return false; // ALLOW DELETION
   localStorage.setItem("synap_owners", JSON.stringify(getOwners().filter(o => o !== name)));
   setEnrolledOwners(getEnrolledOwners().filter(o => o !== name));
   return true;
@@ -552,9 +552,7 @@ export default function VoiceAssistant() {
                     {!enrolledOwners.includes(o) && (
                       <button onClick={() => { setShowOwnerModal(false); startEnrollment(o); }} className="px-3 py-1 bg-slate-800 text-slate-400 rounded text-[10px] tracking-wider hover:text-white">ENROLL</button>
                     )}
-                    {o !== "owner" && (
-                      <button onClick={() => { removeOwner(o); setOwnersState(getOwners()); setEnrolledOwnersState(getEnrolledOwners()); }} className="px-2 py-1 bg-slate-800 text-red-400/60 rounded text-[10px] hover:text-red-400">×</button>
-                    )}
+                    <button onClick={() => { removeOwner(o); setOwnersState(getOwners()); setEnrolledOwnersState(getEnrolledOwners()); }} className="px-2 py-1 bg-slate-800 text-red-400/60 rounded text-[10px] hover:text-red-400">×</button>
                   </div>
                 </div>
               ))}
