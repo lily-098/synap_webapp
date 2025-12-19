@@ -19,10 +19,10 @@ import { Mp3Encoder } from '@breezystack/lamejs';
 const USE_LOCAL_API = true; // Using local API for development
 
 const API_BASE = USE_LOCAL_API
-    ? "http://localhost:8000"
+    ? "http://localhost:8001"
     : "https://ai-voice-detection-3.onrender.com";
 const WS_BASE = USE_LOCAL_API
-    ? "ws://localhost:8000"
+    ? "ws://localhost:8001"
     : "wss://ai-voice-detection-3.onrender.com";
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -198,6 +198,11 @@ export const recordAudio = (durationMs = 3000) => {
             // Use ScriptProcessor (deprecated but reliable for WAV)
             const bufferSize = 4096;
             const processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+
+            // Add GainNode to match verification volume
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = 1.5;
+
             const audioChunks = [];
 
             processor.onaudioprocess = (e) => {
@@ -205,7 +210,8 @@ export const recordAudio = (durationMs = 3000) => {
                 audioChunks.push(new Float32Array(inputData));
             };
 
-            source.connect(processor);
+            source.connect(gainNode);
+            gainNode.connect(processor);
             processor.connect(audioContext.destination);
 
             setTimeout(() => {
@@ -795,7 +801,7 @@ export const createVoiceStream = (userId, onResult, onStatus, onError) => {
             processor = audioContext.createScriptProcessor(2048, 1, 1);
 
             // Configure Gain
-            gainNode.gain.value = 2.5; // Boost volume by 2.5x
+            gainNode.gain.value = 1.5; // Boost volume by 1.5x (Aligned with Enrollment)
 
             // Connect: Source -> Gain -> Processor -> Destination
             source.connect(gainNode);
