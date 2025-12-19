@@ -8,6 +8,7 @@ import {
   verifyChallengeWithText,
   transcribeAudio,
 } from "../utils/voiceAuthService";
+import VoiceAuthAlarm from "./VoiceAuthAlarm";
 
 
 const ENROLLMENT_PHRASES = [
@@ -335,21 +336,58 @@ export default function VoiceAssistant() {
     }
 
     // === NAVIGATION COMMANDS ===
+    // Enhanced with common STT mistakes (e.g., "some stars" → "sensors")
     const NAV = [
-      { p: /\b(home|dashboard|main|start)\b/, r: "/", n: "Dashboard" },
-      { p: /\b(vibration|sensor|signal|piezo)\b/, r: "/vibrations", n: "Vibrations" },
-      { p: /\b(notification|alert|message)\b/, r: "/notifications", n: "Notifications" },
-      { p: /\b(profile|account)\b/, r: "/profile", n: "Profile" },
-      { p: /\b(setting|config|option)\b/, r: "/settings", n: "Settings" },
+      {
+        p: /\b(home|dashboard|main|start)\b/,
+        fuzzy: ["home", "om", "ohm"],
+        r: "/",
+        n: "Dashboard"
+      },
+      {
+        p: /\b(vibration|sensor|signal|piezo|stars?|sense|cents)\b/,
+        fuzzy: ["sensor", "sensors", "vibration", "vibrations", "stars", "some stars", "cents", "sense"],
+        r: "/vibrations",
+        n: "Vibrations"
+      },
+      {
+        p: /\b(notification|alert|message|notes)\b/,
+        fuzzy: ["notification", "notifications", "alert", "notes"],
+        r: "/notifications",
+        n: "Notifications"
+      },
+      {
+        p: /\b(profile|account|user)\b/,
+        fuzzy: ["profile", "account"],
+        r: "/profile",
+        n: "Profile"
+      },
+      {
+        p: /\b(setting|config|option)\b/,
+        fuzzy: ["setting", "settings", "config"],
+        r: "/settings",
+        n: "Settings"
+      },
     ];
 
+    // Helper: Calculate simple string similarity (0-1)
+    const stringSimilarity = (s1, s2) => {
+      const longer = s1.length > s2.length ? s1 : s2;
+      const shorter = s1.length > s2.length ? s2 : s1;
+      if (longer.length === 0) return 1.0;
+
+      let matches = 0;
+      for (let i = 0; i < shorter.length; i++) {
+        if (longer.includes(shorter[i])) matches++;
+      }
+      return matches / longer.length;
+    };
+
+    // Try exact pattern match first
     for (const nav of NAV) {
       if (nav.p.test(t)) {
-        console.log("📝 Match:", nav.n);
+        console.log("📝 Exact Match:", nav.n);
 
-        // NOTE: We assume 'isVerified' is true here because startListening only calls us
-        // if the WebSocket backend returned authorized=true.
-        // Double check strictly here if you want, but the flow is driven by the stream.
         if (!isVerified) {
           updateStatus("locked", "🔒 SAY 'UNLOCK' FIRST");
           speak("Please say unlock to authenticate.");
@@ -357,7 +395,6 @@ export default function VoiceAssistant() {
           return;
         }
 
-        // Execute navigation
         navigate(nav.r);
         updateStatus("success", `→ ${nav.n.toUpperCase()}`);
         speak(nav.n);
@@ -366,8 +403,60 @@ export default function VoiceAssistant() {
       }
     }
 
+    // Try fuzzy matching for multi-word phrases (e.g., "some stars" → "sensors")
+    for (const nav of NAV) {
+      for (const fuzzyWord of nav.fuzzy) {
+        if (fuzzyWord.includes(" ")) { // Multi-word phrase
+          if (t.includes(fuzzyWord)) {
+            console.log(`📝 Multi-word Match: "${fuzzyWord}" found in "${t}" → ${nav.n}`);
+
+            if (!isVerified) {
+              updateStatus("locked", "🔒 SAY 'UNLOCK' FIRST");
+              speak("Please say unlock to authenticate.");
+              setTimeout(() => updateStatus("idle", ""), 3000);
+              return;
+            }
+
+            navigate(nav.r);
+            updateStatus("success", `→ ${nav.n.toUpperCase()}`);
+            speak(nav.n);
+            setTimeout(() => updateStatus("idle", ""), 2000);
+            return;
+          }
+        }
+      }
+    }
+
+    // Try fuzzy matching if no exact match (handles STT errors)
+    const words = t.split(/\s+/);
+    for (const nav of NAV) {
+      for (const fuzzyWord of nav.fuzzy) {
+        for (const word of words) {
+          const similarity = stringSimilarity(word, fuzzyWord);
+          if (similarity > 0.6) { // 60% similarity threshold
+            console.log(`📝 Fuzzy Match: "${word}" ≈ "${fuzzyWord}" (${Math.round(similarity * 100)}%) → ${nav.n}`);
+
+            if (!isVerified) {
+              updateStatus("locked", "🔒 SAY 'UNLOCK' FIRST");
+              speak("Please say unlock to authenticate.");
+              setTimeout(() => updateStatus("idle", ""), 3000);
+              return;
+            }
+
+            navigate(nav.r);
+            updateStatus("success", `→ ${nav.n.toUpperCase()}`);
+            speak(nav.n);
+            setTimeout(() => updateStatus("idle", ""), 2000);
+            return;
+          }
+        }
+      }
+    }
+
     // Unknown command
+    console.log("📝 No match found for:", t);
     updateStatus("idle", "❓ SAY 'HELP'");
+    speak("Command not recognized. Say help for options.");
     setTimeout(() => updateStatus("idle", ""), 2000);
   }, [isVerified, startEnrollment, performVerification, navigate, speak, enrolledOwners]);
 
@@ -674,6 +763,14 @@ export default function VoiceAssistant() {
           </div>
         </div>
       )}
+
+      {/* Voice Authentication Alarm System */}
+      <VoiceAuthAlarm
+        isVerified={isVerified}
+        currentUser={currentUser}
+        onReauthRequest={performVerification}
+        vibrationThreshold={0.7}
+      />
     </>
   );
 }
